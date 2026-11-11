@@ -1,0 +1,1326 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style></head><body><title>Cricket Radar</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-column handheld instrument. A speed readout "screen" up top,
+   big thumb-reach actions under it, then history and the filming guide. */
+:root {
+  --bg: #eef2ee;          /* outfield haze */
+  --panel: #ffffff;
+  --ink: #13201a;
+  --ink-2: #4a5a51;
+  --line: #d3dcd5;
+  --screen: #10241b;      /* readout glass: deep pitch green */
+  --screen-ink: #e8f5ec;
+  --screen-dim: #8fb39d;
+  --ball: #c8102e;        /* cricket-ball red */
+  --ball-ink: #ffffff;
+  --ok: #1f7a4a; --warn: #a15c00; --bad: #b3261e;
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Barlow", "Segoe UI", Roboto, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b110e; --panel: #141c18; --ink: #e5eee8; --ink-2: #9db0a5; --line: #26332c;
+  --screen: #07150e; --screen-ink: #eafaf0; --screen-dim: #7fa58e;
+  --ball: #ff4d5e; --ball-ink: #1a0005; --ok: #4cc283; --warn: #e6a23c; --bad: #ff7b72; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0b110e; --panel: #141c18; --ink: #e5eee8; --ink-2: #9db0a5; --line: #26332c;
+  --screen: #07150e; --screen-ink: #eafaf0; --screen-dim: #7fa58e;
+  --ball: #ff4d5e; --ball-ink: #1a0005; --ok: #4cc283; --warn: #e6a23c; --bad: #ff7b72; color-scheme: dark }
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.45; }
+.wrap { max-width: 560px; margin: 0 auto; padding-block: 12px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 16px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h2 { font-family: var(--display); font-size: 1.35rem; letter-spacing: .02em; text-transform: uppercase; }
+p { margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-2); }
+.small { font-size: .875rem; }
+
+/* header */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand h1 { white-space: nowrap; font-family: var(--display); font-weight: 700; font-size: 1.6rem; letter-spacing: .03em; text-transform: uppercase; }
+.seam { width: 26px; height: 26px; border-radius: 50%; background: var(--ball); position: relative; flex: none; }
+.seam::before, .seam::after { content: ""; position: absolute; top: 3px; bottom: 3px; width: 2px; background: var(--ball-ink); opacity: .7;
+  left: 9px; border-radius: 2px; }
+.seam::after { left: 15px; }
+.chip { white-space: nowrap; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-size: .85rem; display: inline-flex; gap: 6px; align-items: center; }
+
+/* readout */
+.screen { background: var(--screen); color: var(--screen-ink); border-radius: 20px; padding: 18px 20px 16px; display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden; }
+.screen::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.025) 3px 4px); }
+.screen .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.label { font-family: var(--mono); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--screen-dim); }
+.tag { font-family: var(--mono); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px;
+  border: 1px solid var(--screen-dim); color: var(--screen-dim); }
+.tag.live { border-color: var(--ball); color: var(--screen-ink); background: var(--ball); }
+.speed { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.speed .num { font-family: var(--display); font-weight: 700; font-size: clamp(4.2rem, 23vw, 8rem); line-height: .9; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
+.speed .unit { font-family: var(--display); font-size: 1.6rem; font-weight: 600; color: var(--screen-dim); }
+.speed .pm { font-family: var(--mono); font-size: .95rem; color: var(--screen-dim); }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border-top: 1px solid rgba(255,255,255,.12); padding-top: 10px; }
+.facts div { min-width: 0; }
+.facts b { display: block; font-family: var(--display); font-weight: 600; font-size: 1.15rem; line-height: 1.15; letter-spacing: .02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.facts span { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--screen-dim); font-family: var(--mono); }
+.pop { animation: pop .5s cubic-bezier(.2,1.4,.4,1); }
+@keyframes pop { from { transform: scale(.85); opacity: .3 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .pop { animation: none } }
+
+/* actions */
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: var(--r); padding: 14px 14px; font-weight: 600; text-align: left; display: flex; flex-direction: column; gap: 2px; min-height: 64px; justify-content: center; }
+.btn small { font-weight: 400; color: var(--ink-2); font-size: .82rem; }
+.btn.primary { grid-column: 1 / -1; background: var(--ball); color: var(--ball-ink); border-color: transparent; font-size: 1.1rem; }
+.btn.primary small { color: var(--ball-ink); opacity: .85; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn-s { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 8px 14px; font-weight: 600; }
+.btn-s.go { background: var(--ball); color: var(--ball-ink); border-color: transparent; }
+.btn-s:disabled { opacity: .45; cursor: default; }
+.link { background: none; border: 0; padding: 0; color: var(--ball); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.note { font-size: .9rem; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); }
+.note.warn { border-color: var(--warn); color: var(--warn); }
+.note.bad { border-color: var(--bad); color: var(--bad); }
+
+/* track picture */
+.shot { width: 100%; height: auto; border-radius: 10px; display: block; background: var(--screen); }
+
+/* history */
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.stat b { font-family: var(--display); font-size: 1.6rem; font-weight: 700; display: block; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat span { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-2); font-family: var(--mono); }
+.hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.hist li { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.hist li:first-child { border-top: 0; }
+.hist .v { font-family: var(--display); font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hist .d { min-width: 0; font-size: .85rem; color: var(--ink-2); }
+.hist .x { background: none; border: 0; color: var(--ink-2); font-size: 1.2rem; padding: 4px 8px; }
+.empty { color: var(--ink-2); font-size: .92rem; }
+
+/* guide */
+.steps { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 8px; }
+.steps li::marker { font-family: var(--mono); color: var(--ball); }
+details > summary { cursor: pointer; font-weight: 600; }
+.spec { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; font-size: .9rem; }
+.spec dt { color: var(--ink-2); }
+.spec dd { margin: 0; }
+
+/* full-screen sheets */
+.sheet { position: fixed; inset: 0; background: var(--bg); z-index: 20; overflow-y: auto; }
+#mark .wrap { max-width: 1100px; }
+.sheet .wrap { padding-block: calc(env(safe-area-inset-top, 0px) + 12px) calc(env(safe-area-inset-bottom, 0px) + 24px); }
+.sheet-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.stage { position: relative; border-radius: 12px; overflow: hidden; background: #000; }
+.stage canvas { display: block; width: 100%; height: auto; touch-action: none; }
+.loupe { position: fixed; z-index: 30; width: 132px; height: 132px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 4px 18px rgba(0,0,0,.45); pointer-events: none; overflow: hidden; }
+.loupe canvas { width: 100%; height: 100%; }
+.prompt { display: flex; gap: 12px; align-items: center; }
+.prompt .n { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--ball); color: var(--ball-ink); display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 1.2rem; }
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: none; padding: 10px 6px; font-size: .9rem; border-left: 1px solid var(--line); }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); font-weight: 600; }
+.range { width: 100%; accent-color: var(--ball); }
+.bar { height: 10px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--ball); transition: width .2s; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-weight: 600; font-size: .92rem; }
+.field select, .field input { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 10px 12px; width: 100%; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.livebox { position: relative; border-radius: 12px; overflow: hidden; background: #000; }
+.livebox video { display: block; width: 100%; height: auto; }
+.livebox .hud { position: absolute; left: 10px; top: 10px; right: 10px; display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: .75rem; color: #fff; text-shadow: 0 1px 3px #000; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ball); margin-right: 6px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .2 } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none } }
+@media (max-width: 360px) { .actions { grid-template-columns: 1fr; } .facts { grid-template-columns: 1fr 1fr; } }
+</style>
+
+<div class="wrap" id="home">
+  <header class="top">
+    <div class="brand"><span class="seam" aria-hidden="true"></span><h1>Cricket Radar</h1></div>
+    <button class="chip" id="phoneChip" type="button" aria-label="Settings"><span id="phoneName">Y9 Prime</span> <span aria-hidden="true">⚙</span></button>
+  </header>
+
+  <section class="screen" aria-live="polite" id="screen">
+    <div class="row"><span class="label">Release speed</span><span class="tag" id="readTag">Example</span></div>
+    <div class="speed" id="speedBox"><span class="num" id="speedNum">137.1</span><span class="unit" id="speedUnit">km/h</span></div>
+    <div class="row"><span class="pm" id="speedPm">± 1.6 km/h · 85.2 mph</span></div>
+    <div class="facts">
+      <div><b id="fLen">Good length</b><span>Length</span></div>
+      <div><b id="fBounce">6.4 m</b><span>From batter</span></div>
+      <div><b id="fFps">4× · 120 fps</b><span>Capture</span></div>
+    </div>
+  </section>
+
+  <div id="resultExtra" class="card" hidden>
+    <div class="card-h"><h2>The delivery</h2><span class="small muted mono" id="rxMeta"></span></div>
+    <canvas class="shot" id="shot" width="960" height="300" aria-label="Video frame with the tracked ball path drawn on it"></canvas>
+    <dl class="spec" id="rxSpec"></dl>
+    <div id="rxWarn" class="note warn" hidden></div>
+  </div>
+
+  <div class="actions">
+    <button class="btn primary" id="btnClip" type="button">Measure a delivery<small>Pick a slow-mo video you filmed with the camera app</small></button>
+    <button class="btn" id="btnLive" type="button">Live radar<small>Watch through the camera</small></button>
+    <button class="btn" id="btnSample" type="button">Try the sample<small>A 140 km/h ball, 4× slow-mo</small></button>
+  </div>
+  <input type="file" id="fileIn" accept="video/*" hidden>
+  <div id="homeMsg" class="note bad" hidden></div>
+
+  <section class="card" aria-labelledby="hH">
+    <div class="card-h"><h2 id="hH">This session</h2><button class="link" id="btnClear" type="button" hidden>Clear</button></div>
+    <div class="stats" id="stats" hidden>
+      <div class="stat"><b id="sTop">–</b><span>Fastest</span></div>
+      <div class="stat"><b id="sAvg">–</b><span>Average</span></div>
+      <div class="stat"><b id="sN">0</b><span>Balls</span></div>
+    </div>
+    <ul class="hist" id="hist"></ul>
+    <p class="empty" id="histEmpty">Your measured balls appear here, fastest and average at the top.</p>
+    <div id="clearConfirm" class="note" hidden>Delete all saved balls? <button class="link" id="clearYes" type="button">Delete</button> · <button class="link" id="clearNo" type="button">Keep</button></div>
+  </section>
+
+  <section class="card" aria-labelledby="gH">
+    <h2 id="gH">Filming with your Y9 Prime</h2>
+    <ol class="steps">
+      <li><b>Tripod, side-on.</b> Stand 15–25 m from the pitch, level with its middle, so both sets of stumps are in the picture. Landscape.</li>
+      <li><b>Main lens only.</b> Stay on 1×. The 0.6× ultra-wide bends the picture and spoils the measurement.</li>
+      <li><b>Slow-mo.</b> Camera › More › Slow-mo. Pick the fastest speed your phone offers (4× or more). The app works out which one you used.</li>
+      <li><b>Lock it.</b> Don't zoom or move the phone after marking the stumps. Bright daylight gives the sharpest ball.</li>
+      <li><b>Measure.</b> Tap <i>Measure a delivery</i>, pick the clip, mark the two middle stumps once, and read the speed.</li>
+    </ol>
+    <details>
+      <summary>Why release speed, and how close is it?</summary>
+      <div class="small muted" style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <p>Broadcast speed guns show the ball's speed as it leaves the hand, in km/h. The ICC sets no rule of its own for measuring it. This app reports the same figure: it fits the ball's flight with air drag and gravity and works back to the release point, using the Laws of Cricket pitch (20.12 m) and stump height (71.1 cm).</p>
+        <p>In tests on computer-rendered Y9-style clips, readings were within about 3 km/h of the true speed in slow-mo and at 30 fps. Real footage is harder; check against a radar gun before trusting the last km/h.</p>
+      </div>
+    </details>
+  </section>
+</div>
+
+<!-- Mark the stumps -->
+<div class="sheet" id="mark" hidden>
+  <div class="wrap">
+    <div class="sheet-top"><h2>Mark the stumps</h2><button class="btn-s" id="markClose" type="button">Cancel</button></div>
+    <div class="prompt"><span class="n" id="mkN">1</span><p id="mkText">Bowler's end: <b>bottom</b> of the middle stump</p></div>
+    <div class="stage" id="stage"><canvas id="mkCanvas" aria-label="Video frame. Tap to place the point; a magnifier shows while your finger is down."></canvas>
+      <div class="loupe" id="loupe" hidden><canvas id="loupeCv" width="132" height="132"></canvas></div></div>
+    <p class="small muted">Press on a point and slide your finger to fine-tune it in the magnifier; it moves at a quarter of your finger's speed. Lift to place. Turn the phone sideways for a bigger picture.</p>
+    <div class="field" id="scrubF"><label for="scrub">Pick a frame where both stumps are clear</label><input type="range" class="range" id="scrub" min="0" max="1000" value="0"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-s" id="mkUndo" type="button">Undo point</button>
+      <button class="btn-s" id="mkSaved" type="button" hidden>Use saved stumps</button>
+    </div>
+    <div class="field"><label>Where did the ball leave the hand? <span class="muted small">(seen from your phone)</span></label>
+      <div class="seg" role="group" id="sideSeg">
+        <button type="button" data-side="near">Near side</button><button type="button" data-side="centre">Over stumps</button><button type="button" data-side="far">Far side</button>
+      </div>
+      <p class="small muted">Near side = between the stumps and you. Getting this right removes 1–2 % error.</p>
+    </div>
+    <button class="btn primary" id="mkGo" type="button" disabled>Measure speed<small id="mkGoSub">Mark all 4 points first</small></button>
+  </div>
+</div>
+
+<!-- Working -->
+<div class="sheet" id="work" hidden>
+  <div class="wrap">
+    <h2>Reading the delivery</h2>
+    <p class="muted" id="wkText">Tracking the ball frame by frame…</p>
+    <div class="bar"><i id="wkBar"></i></div>
+    <p class="small muted mono" id="wkMeta"></p>
+    <button class="btn-s" id="wkCancel" type="button">Cancel</button>
+  </div>
+</div>
+
+<!-- Live radar -->
+<div class="sheet" id="live" hidden>
+  <div class="wrap">
+    <div class="sheet-top"><h2>Live radar</h2><button class="btn-s" id="lvClose" type="button">Stop</button></div>
+    <div class="livebox"><video id="lvVideo" playsinline muted></video>
+      <div class="hud"><span><span class="dot"></span><span id="lvState">Watching</span></span><span id="lvFps"></span></div></div>
+    <section class="screen" aria-live="polite">
+      <div class="row"><span class="label">Last ball</span><span class="tag live">Live</span></div>
+      <div class="speed"><span class="num" id="lvNum">–</span><span class="unit" id="lvUnit">km/h</span></div>
+      <div class="row"><span class="pm" id="lvPm">Bowl when ready. The speed shows about a second after the ball pitches.</span></div>
+    </section>
+    <div class="note warn small" id="lvNote">Live mode uses the camera's normal frame rate (about 30 fps on the Y9 Prime), so readings are rougher than slow-mo clips.</div>
+    <button class="btn-s" id="lvRemark" type="button">Re-mark stumps</button>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="sheet" id="settings" hidden>
+  <div class="wrap">
+    <div class="sheet-top"><h2>Settings</h2><button class="btn-s go" id="stDone" type="button">Done</button></div>
+    <div class="field"><label for="stPhone">Phone</label>
+      <select id="stPhone"><option value="huawei-y9-prime-2019">Huawei Y9 Prime (2019)</option><option value="generic">Other phone</option></select></div>
+    <div class="field" id="stFovF" hidden><label for="stFov">Main camera field of view (degrees, across the video)</label><input id="stFov" type="number" min="40" max="100" step="1"></div>
+    <dl class="spec" id="stSpec"></dl>
+    <div class="field"><label for="stSlow">Slow-mo speed of the clip</label>
+      <select id="stSlow"><option value="auto">Work it out from the ball's fall (recommended)</option><option value="1">Normal video (not slow-mo)</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option><option value="16">16×</option><option value="32">32×</option></select></div>
+    <div class="field"><label for="stUnits">Show speed in</label>
+      <select id="stUnits"><option value="kmh">km/h</option><option value="mph">mph</option></select></div>
+    <div class="two">
+      <div class="field"><label for="stAlt">Ground altitude (m)</label><input id="stAlt" type="number" min="-100" max="4000" step="10"></div>
+      <div class="field"><label for="stTemp">Air temperature (°C)</label><input id="stTemp" type="number" min="-10" max="50" step="1"></div>
+    </div>
+    <p class="small muted">Thinner air (high grounds, hot days) slows the ball less. This changes readings by a few tenths of a km/h.</p>
+    <div class="field"><label for="stThr">Ball detection sensitivity</label>
+      <select id="stThr"><option value="24">Low (busy background)</option><option value="18">Normal</option><option value="12">High (faint or distant ball)</option></select></div>
+  </div>
+</div>
+
+<canvas id="work1" hidden></canvas>
+<video id="clipVideo" playsinline muted preload="auto" aria-hidden="true" style="position:fixed;left:-10px;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none"></video>
+
+<script>
+/* CricketRadar engine - ball detection, tracking and release-speed physics.
+ * Pure JavaScript, no dependencies. Runs in the browser and in Node (for tests).
+ *
+ * Conventions: world X = metres down the pitch from the bowler's middle stump,
+ * Y = sideways, Z = height. Times are in seconds. Speeds in m/s internally.
+ */
+(function (root) {
+  'use strict';
+
+  // ---------------------------------------------------------------- constants
+  const PITCH = 20.12;                 // Laws of Cricket: 22 yd between middle stumps
+  const STUMP_H = 0.711;               // 28 in
+  const BALL_MASS = 0.1595;            // men's ball, 155.9-163 g
+  const BALL_D = 0.2265 / Math.PI;     // 224-229 mm circumference
+  const G = 9.81;
+  const MIN_V = 12, MAX_V = 50;        // 43-180 km/h
+
+  // Phone camera profiles. hfovDeg = horizontal field of view of the main
+  // camera in 16:9 video; readoutFrac = rolling-shutter readout time as a
+  // fraction of the frame period.
+  const PHONES = {
+    'huawei-y9-prime-2019': {
+      name: 'Huawei Y9 Prime (2019)',
+      mainCamera: '16 MP, f/1.8, PDAF',
+      video: '1080p at 30 fps (rear and front)',
+      hfovDeg: 65,       // estimate: ~27 mm-equivalent lens, full sensor width used for 16:9 video
+      readoutFrac: 0.75, // estimate for a budget CMOS sensor: ~25 ms per 1080p frame at 30 fps
+      slowmoFactors: [4, 8],
+      notes: 'No electronic stabilisation, so the video is not cropped or warped. ' +
+             'Use the main 1x lens; the 0.6x ultra-wide (13 mm, ~120 deg) bends straight lines.'
+    },
+    generic: {
+      name: 'Other phone',
+      mainCamera: '', video: '', hfovDeg: 68, readoutFrac: 0.75,
+      slowmoFactors: [4, 8, 2, 16, 32], notes: ''
+    }
+  };
+
+  function dragK(cd, rho) {
+    return rho * cd * Math.PI * (BALL_D / 2) ** 2 / (2 * BALL_MASS);
+  }
+
+  // ---------------------------------------------------------------- linear algebra
+  function solve(A, b) {             // Gaussian elimination, partial pivoting
+    const n = b.length, M = A.map((r, i) => r.concat([b[i]]));
+    for (let c = 0; c < n; c++) {
+      let p = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      if (Math.abs(M[p][c]) < 1e-14) return null;
+      [M[c], M[p]] = [M[p], M[c]];
+      for (let r = c + 1; r < n; r++) {
+        const f = M[r][c] / M[c][c];
+        for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+      }
+    }
+    const x = new Array(n).fill(0);
+    for (let r = n - 1; r >= 0; r--) {
+      let s = M[r][n];
+      for (let k = r + 1; k < n; k++) s -= M[r][k] * x[k];
+      x[r] = s / M[r][r];
+    }
+    return x;
+  }
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const norm = a => Math.hypot(a[0], a[1], a[2]);
+  const scale = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const normalize = a => scale(a, 1 / norm(a));
+
+  function homography(src, dst) {     // maps src[i] -> dst[i], 4 point pairs
+    const A = [], b = [];
+    for (let i = 0; i < 4; i++) {
+      const [x, y] = src[i], [u, v] = dst[i];
+      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+      A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+    }
+    const h = solve(A, b);
+    if (!h) return null;
+    return [[h[0], h[1], h[2]], [h[3], h[4], h[5]], [h[6], h[7], 1]];
+  }
+
+  function polyfit(x, y, deg) {       // least squares, returns coeffs high->low in original x
+    const n = x.length; let mx = 0;
+    for (const v of x) mx += v / n;
+    const xs = x.map(v => v - mx), d = deg + 1;
+    const A = Array.from({ length: d }, () => new Array(d).fill(0)), b = new Array(d).fill(0);
+    for (let i = 0; i < n; i++) {
+      const pw = [1]; for (let k = 1; k < 2 * d; k++) pw.push(pw[k - 1] * xs[i]);
+      for (let r = 0; r < d; r++) { b[r] += pw[r] * y[i]; for (let c = 0; c < d; c++) A[r][c] += pw[r + c]; }
+    }
+    const cLow = solve(A, b);       // coefficients in centred x, low->high
+    if (!cLow) return null;
+    // expand back to original x: sum c_k (x - mx)^k
+    const out = new Array(d).fill(0); // low->high
+    for (let k = 0; k < d; k++) {
+      let binom = 1;
+      for (let j = 0; j <= k; j++) {
+        out[j] += cLow[k] * binom * Math.pow(-mx, k - j);
+        binom = binom * (k - j) / (j + 1);
+      }
+    }
+    return out.reverse();           // high->low like numpy
+  }
+  const polyval = (c, x) => c.reduce((s, v) => s * x + v, 0);
+  const polyder = c => c.slice(0, -1).map((v, i) => v * (c.length - 1 - i));
+  const median = a => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+  // ---------------------------------------------------------------- calibration
+  // Four points, in this order: bowler's-end middle stump base, its top,
+  // batter's-end middle stump base, its top.
+  const WORLD_XZ = [[0, 0], [0, STUMP_H], [PITCH, 0], [PITCH, STUMP_H]];
+
+  function cameraFromCalibration(imgPts, frameW, frameH, hfovDeg) {
+    const H = homography(WORLD_XZ, imgPts);
+    if (!H) throw new Error('The four points are in a line or on top of each other. Mark them again.');
+    const cx = frameW / 2, cy = frameH / 2;
+    const f0 = (frameW / 2) / Math.tan(hfovDeg * Math.PI / 360);
+
+    function poseFor(f) {
+      const col = j => [(H[0][j] - cx * H[2][j]) / f, (H[1][j] - cy * H[2][j]) / f, H[2][j]];
+      const a0 = col(0), a1 = col(1), a2 = col(2);
+      let lam = 2 / (norm(a0) + norm(a1));
+      if (a2[2] * lam < 0) lam = -lam;
+      const rX = normalize(scale(a0, lam));
+      let rZ = scale(a1, lam);
+      rZ = normalize(sub(rZ, scale(rX, dot(rX, rZ))));
+      const rY = cross(rZ, rX);
+      const R = [[rX[0], rY[0], rZ[0]], [rX[1], rY[1], rZ[1]], [rX[2], rY[2], rZ[2]]];
+      const t = scale(a2, lam);
+      const cam = { f, cx, cy, R, t, W: frameW, H: frameH };
+      let ss = 0;
+      for (let i = 0; i < 4; i++) {
+        const p = projectWorld(cam, [WORLD_XZ[i][0], 0, WORLD_XZ[i][1]]);
+        ss += (p[0] - imgPts[i][0]) ** 2 + (p[1] - imgPts[i][1]) ** 2;
+      }
+      cam.rms = Math.sqrt(ss / 4);
+      return cam;
+    }
+    // Start from the homography decomposition, then fit a rigid camera
+    // (focal length + pose) to the 4 clicks by least squares. A side-on view
+    // barely constrains the focal length, so the phone's lens acts as a prior.
+    const init = poseFor(f0);
+    const p0 = [0, ...rotToVec(init.R), ...init.t];
+    const resid = p => {
+      const cam = camFromParams(p, f0, cx, cy, frameW, frameH), r = [];
+      for (let i = 0; i < 4; i++) {
+        const q = projectWorld(cam, [WORLD_XZ[i][0], 0, WORLD_XZ[i][1]]);
+        r.push(q[0] - imgPts[i][0], q[1] - imgPts[i][1]);
+      }
+      r.push(p[0] / 0.15 * 0.5);   // focal-length prior: ~15 % (1 sigma) costs 0.5 px
+      return r;
+    };
+    const p = levenbergMarquardt(resid, p0);
+    const cam = camFromParams(p, f0, cx, cy, frameW, frameH);
+    const r = resid(p).slice(0, 8);
+    cam.rms = Math.sqrt(r.reduce((s, v) => s + v * v, 0) / 4);
+    cam.C = scale(matTvec(cam.R, cam.t), -1);   // camera centre in world coords
+    cam.hfovUsed = 2 * Math.atan((frameW / 2) / cam.f) * 180 / Math.PI;
+    return cam;
+  }
+  function vecToRot(w) {             // Rodrigues
+    const th = norm(w);
+    if (th < 1e-12) return [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const [x, y, z] = scale(w, 1 / th), c = Math.cos(th), s = Math.sin(th), C = 1 - c;
+    return [[c + x * x * C, x * y * C - z * s, x * z * C + y * s],
+            [y * x * C + z * s, c + y * y * C, y * z * C - x * s],
+            [z * x * C - y * s, z * y * C + x * s, c + z * z * C]];
+  }
+  function rotToVec(R) {
+    const tr = R[0][0] + R[1][1] + R[2][2];
+    const th = Math.acos(Math.max(-1, Math.min(1, (tr - 1) / 2)));
+    if (th < 1e-9) return [0, 0, 0];
+    const v = [R[2][1] - R[1][2], R[0][2] - R[2][0], R[1][0] - R[0][1]];
+    if (Math.PI - th < 1e-4) {           // near 180 deg: use the diagonal
+      const ax = normalize([Math.sqrt(Math.max(0, (R[0][0] + 1) / 2)), Math.sign(v[0] || 1) * Math.sqrt(Math.max(0, (R[1][1] + 1) / 2)),
+        Math.sign(v[1] || 1) * Math.sqrt(Math.max(0, (R[2][2] + 1) / 2))]);
+      return scale(ax, th);
+    }
+    return scale(v, th / (2 * Math.sin(th)));
+  }
+  function camFromParams(p, f0, cx, cy, W, H) {
+    return { f: f0 * Math.exp(p[0]), cx, cy, R: vecToRot([p[1], p[2], p[3]]), t: [p[4], p[5], p[6]], W, H };
+  }
+  function levenbergMarquardt(F, p0, iters = 200) {
+    let p = p0.slice(), r = F(p), cost = r.reduce((s, v) => s + v * v, 0), lam = 1e-3;
+    const n = p.length;
+    for (let it = 0; it < iters; it++) {
+      const J = [];
+      for (let j = 0; j < n; j++) {
+        const h = 1e-6 * Math.max(1, Math.abs(p[j]));
+        const pp = p.slice(); pp[j] += h; const rp = F(pp);
+        const pm = p.slice(); pm[j] -= h; const rm = F(pm);
+        J.push(rp.map((v, i) => (v - rm[i]) / (2 * h)));
+      }
+      const A = Array.from({ length: n }, (_, a) => Array.from({ length: n }, (_, b) => J[a].reduce((s, v, i) => s + v * J[b][i], 0)));
+      const g = J.map(col => col.reduce((s, v, i) => s + v * r[i], 0));
+      let improved = false;
+      for (let tries = 0; tries < 10; tries++) {
+        const Ad = A.map((row, a) => row.map((v, b) => a === b ? v * (1 + lam) + 1e-12 : v));
+        const d = solve(Ad, g.map(v => -v));
+        if (!d) { lam *= 10; continue; }
+        const pn = p.map((v, i) => v + d[i]), rn = F(pn), cn = rn.reduce((s, v) => s + v * v, 0);
+        if (cn < cost) {
+          const rel = (cost - cn) / Math.max(cost, 1e-12);
+          p = pn; r = rn; cost = cn; lam = Math.max(lam / 10, 1e-9); improved = true;
+          if (rel < 1e-12) return p;
+          break;
+        }
+        lam *= 10;
+      }
+      if (!improved) break;
+    }
+    return p;
+  }
+  const matvec = (R, v) => [dot(R[0], v), dot(R[1], v), dot(R[2], v)];
+  const matTvec = (R, v) => [R[0][0] * v[0] + R[1][0] * v[1] + R[2][0] * v[2],
+                             R[0][1] * v[0] + R[1][1] * v[1] + R[2][1] * v[2],
+                             R[0][2] * v[0] + R[1][2] * v[1] + R[2][2] * v[2]];
+  function projectWorld(cam, P) {
+    const c = add(matvec(cam.R, P), cam.t);
+    return [cam.f * c[0] / c[2] + cam.cx, cam.f * c[1] / c[2] + cam.cy];
+  }
+
+  // The vertical plane the ball travels in: from the release point (beside the
+  // stumps by `releaseOffset` m, + = towards the camera) to the batter's middle stump.
+  function makeMapper(cam, releaseOffset = 0, releaseX = 0.9) {
+    const side = cam.C[1] >= 0 ? 1 : -1;
+    const y0 = side * releaseOffset, x0 = releaseX;
+    const slope = (0 - y0) / (PITCH - x0);
+    const a = [x0, y0, 0];
+    const d = normalize([1, slope, 0]);
+    const n = [-d[1], d[0], 0];
+    const camDist = Math.abs(dot(n, sub(cam.C, a)));
+    return {
+      cam, slope, camDist,
+      toWorld(u, v) {
+        const ray = matTvec(cam.R, [(u - cam.cx) / cam.f, (v - cam.cy) / cam.f, 1]);
+        const den = dot(ray, n);
+        if (Math.abs(den) < 1e-9) return null;
+        const s = dot(n, sub(a, cam.C)) / den;
+        if (s <= 0) return null;
+        const P = add(cam.C, scale(ray, s));
+        return [P[0], P[2]];
+      },
+      toImage(X, Z) { return projectWorld(cam, [X, y0 + (X - x0) * slope, Z]); }
+    };
+  }
+
+  // Bounding box (in video pixels) of the corridor above the pitch: only this
+  // part of each frame needs to be searched for the ball.
+  function corridorBox(mapper, frameW, frameH) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const X of [-3, PITCH / 2, PITCH + 3]) for (const Z of [-0.4, 3.5]) {
+      const [u, v] = mapper.toImage(X, Z);
+      x0 = Math.min(x0, u); x1 = Math.max(x1, u); y0 = Math.min(y0, v); y1 = Math.max(y1, v);
+    }
+    const pad = 0.01 * frameW;
+    x0 = Math.max(0, Math.floor(x0 - pad)); y0 = Math.max(0, Math.floor(y0 - pad));
+    x1 = Math.min(frameW, Math.ceil(x1 + pad)); y1 = Math.min(frameH, Math.ceil(y1 + pad));
+    return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+  }
+
+  // ---------------------------------------------------------------- detection
+  // Three-frame differencing on a region of interest. push() frames in order;
+  // each call returns candidates for the previous frame.
+  class MotionDetector {
+    constructor(opts) {
+      // opts: roiW, roiH (analysis pixels), toVideo(x,y)->[u,v], videoH, mapper,
+      //       threshold, minArea, maxArea
+      Object.assign(this, { threshold: 18, minArea: 2, maxArea: 400, maxPerFrame: 60 }, opts);
+      this.frames = []; this.meta = [];
+      const n = this.roiW * this.roiH;
+      this.mask = new Uint8Array(n); this.label = new Int32Array(n); this.stack = new Int32Array(n);
+    }
+    push(rgba, frameIndex, tFrame) {
+      this.frames.push(rgba); this.meta.push({ frameIndex, tFrame });
+      if (this.frames.length > 3) { this.frames.shift(); this.meta.shift(); }
+      if (this.frames.length < 3) return [];
+      return this._detect();
+    }
+    _detect() {
+      const [p, c, nx] = this.frames, W = this.roiW, Hh = this.roiH, thr = this.threshold;
+      const mask = this.mask;
+      for (let i = 0, j = 0; i < W * Hh; i++, j += 4) {
+        const d1 = Math.max(Math.abs(c[j] - p[j]), Math.abs(c[j + 1] - p[j + 1]), Math.abs(c[j + 2] - p[j + 2]));
+        if (d1 < thr) { mask[i] = 0; continue; }
+        const d2 = Math.max(Math.abs(c[j] - nx[j]), Math.abs(c[j + 1] - nx[j + 1]), Math.abs(c[j + 2] - nx[j + 2]));
+        mask[i] = d2 >= thr ? 1 : 0;
+      }
+      // connected components (8-neighbour) via flood fill
+      const label = this.label, stack = this.stack; label.fill(0);
+      const out = []; let nl = 0;
+      for (let i = 0; i < W * Hh; i++) {
+        if (!mask[i] || label[i]) continue;
+        nl++; let sp = 0; stack[sp++] = i; label[i] = nl;
+        let area = 0, sx = 0, sy = 0, tooBig = false;
+        while (sp) {
+          const q = stack[--sp], qx = q % W, qy = (q / W) | 0;
+          area++; sx += qx; sy += qy;
+          for (let dy = -1; dy <= 1; dy++) {
+            const yy = qy + dy; if (yy < 0 || yy >= Hh) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = qx + dx; if (xx < 0 || xx >= W) continue;
+              const r = yy * W + xx;
+              if (mask[r] && !label[r]) { label[r] = nl; stack[sp++] = r; }
+            }
+          }
+          if (area > this.maxArea * 4) tooBig = true;
+        }
+        if (tooBig || area < this.minArea || area > this.maxArea) continue;
+        out.push({ x: sx / area + 0.5, y: sy / area + 0.5, area });
+      }
+      if (out.length > this.maxPerFrame) { out.sort((a, b) => a.area - b.area); out.length = this.maxPerFrame; }
+      const m = this.meta[1], cands = [];
+      for (const o of out) {
+        const [u, v] = this.toVideo(o.x, o.y);
+        const w = this.mapper.toWorld(u, v);
+        if (!w) continue;
+        const [X, Z] = w;
+        if (X < -3 || X > PITCH + 3 || Z < -0.4 || Z > 3.5) continue;
+        cands.push({ frame: m.frameIndex, tFrame: m.tFrame, rowFrac: v / this.videoH, u, v, X, Z, area: o.area });
+      }
+      return cands;
+    }
+  }
+
+  // ---------------------------------------------------------------- physics helpers
+  const xDrag = (t, a, u, t1, k) => a + Math.log1p(k * u * (t - t1)) / k;
+
+  function fitDrag(t, X, k, t1, a0, u0) {   // Gauss-Newton for (a, u)
+    let a = a0, u = u0;
+    const n = t.length;
+    for (let it = 0; it < 50; it++) {
+      let A00 = 0, A01 = 0, A11 = 0, b0 = 0, b1 = 0;
+      for (let i = 0; i < n; i++) {
+        const q = 1 + k * u * (t[i] - t1);
+        const r = X[i] - (a + Math.log(q) / k), j1 = (t[i] - t1) / q;
+        A00 += 1; A01 += j1; A11 += j1 * j1; b0 += r; b1 += j1 * r;
+      }
+      const det = A00 * A11 - A01 * A01;
+      if (Math.abs(det) < 1e-18) break;
+      let da = (A11 * b0 - A01 * b1) / det, du = (A00 * b1 - A01 * b0) / det;
+      let step = 1;
+      while (step > 1e-4) {
+        const un = u + step * du;
+        let ok = un > 0.5;
+        for (let i = 0; ok && i < n; i++) if (1 + k * un * (t[i] - t1) <= 0) ok = false;
+        if (ok) break;
+        step /= 2;
+      }
+      a += step * da; u += step * du;
+      if (Math.abs(du * step) < 1e-8 && Math.abs(da * step) < 1e-9) break;
+    }
+    let ss = 0, A00 = 0, A01 = 0, A11 = 0;
+    for (let i = 0; i < n; i++) {
+      const q = 1 + k * u * (t[i] - t1), j1 = (t[i] - t1) / q;
+      ss += (X[i] - (a + Math.log(q) / k)) ** 2; A00 += 1; A01 += j1; A11 += j1 * j1;
+    }
+    const s2 = ss / Math.max(1, n - 2), det = A00 * A11 - A01 * A01;
+    const cov = [[s2 * A11 / det, -s2 * A01 / det], [-s2 * A01 / det, s2 * A00 / det]];
+    return { a, u, cov, resid: t.map((ti, i) => X[i] - xDrag(ti, a, u, t1, k)) };
+  }
+
+  // ---------------------------------------------------------------- tracking
+  function bestInFrame(cs, Xp, Zp, tolX, tolZ) {
+    let best = null, eb = Infinity;
+    for (const c of cs) {
+      const ex = Math.abs(c.X - Xp), ez = Zp == null ? 0 : Math.abs(c.Z - Zp);
+      if (ex <= tolX && ez <= tolZ) { const e = ex + 0.3 * ez; if (e < eb) { eb = e; best = c; } }
+    }
+    return best;
+  }
+
+  function findTrack(cands, fps, k) {
+    const byFrame = new Map();
+    for (const c of cands) { if (!byFrame.has(c.frame)) byFrame.set(c.frame, []); byFrame.get(c.frame).push(c); }
+    if (!byFrame.size) return [];
+    const frames = [...byFrame.keys()].sort((a, b) => a - b);
+    const fMin = frames[0], fMax = frames[frames.length - 1];
+    const gap = Math.max(2, Math.round(0.03 * fps)), half = Math.max(4, Math.round(0.12 * fps));
+
+    let bestScore = 0, bestSeed = null;
+    for (const fi of frames) {
+      const fj = fi + gap; if (!byFrame.has(fj)) continue;
+      for (const c1 of byFrame.get(fi)) for (const c2 of byFrame.get(fj)) {
+        const dt = c2.t - c1.t; if (dt <= 0) continue;
+        const v = (c2.X - c1.X) / dt, vz = (c2.Z - c1.Z) / dt;
+        if (v < MIN_V || v > MAX_V || Math.abs(vz) > 12) continue;
+        const inl = [];
+        for (let f = fi - half; f <= fi + half; f++) {
+          const cs = byFrame.get(f); if (!cs) continue;
+          const tt = cs[0].t - c1.t;
+          const c = bestInFrame(cs, c1.X + v * tt, c1.Z + vz * tt,
+            0.15 + 0.06 * Math.abs(v * tt), 0.35 + 0.5 * G * tt * tt + 0.1 * Math.abs(vz * tt));
+          if (c) inl.push(c);
+        }
+        if (inl.length <= bestScore || inl.length < 4) continue;
+        const vf = polyfit(inl.map(c => c.t), inl.map(c => c.X), 1);
+        if (vf && vf[0] >= MIN_V && vf[0] <= MAX_V) { bestScore = inl.length; bestSeed = inl; }
+      }
+    }
+    if (!bestSeed) return [];
+
+    let track = bestSeed;
+    for (let iter = 0; iter < 60; iter++) {
+      const t = track.map(c => c.t), X = track.map(c => c.X), Z = track.map(c => c.Z);
+      const t1 = t[0];
+      const lin = polyfit(t, X, 1);
+      const fit = fitDrag(t, X, k, t1, X[0], Math.max(MIN_V, lin[0]));
+      const { a, u } = fit;
+      const nLo = Math.min(t.length, 30);
+      const zLo = polyfit(t.slice(0, nLo), Z.slice(0, nLo), t.length >= 6 ? 2 : 1);
+      const zHi = polyfit(t.slice(-nLo), Z.slice(-nLo), 1);
+      const fFirst = track[0].frame, fLast = track[track.length - 1].frame;
+      const span = Math.max(3, Math.round(0.08 * fps));
+      const add = [];
+      for (let f = fFirst - 1; f >= Math.max(fMin, fFirst - span); f--) {
+        const cs = byFrame.get(f); if (!cs) continue;
+        const tt = cs[0].t;
+        if (k * u * (tt - t1) <= -0.9) break;
+        const xp = xDrag(tt, a, u, t1, k); if (xp < -1.5) break;
+        const c = bestInFrame(cs, xp, polyval(zLo, tt), 0.25, 0.4);
+        if (c) add.push(c);
+      }
+      const vEnd = u * Math.exp(-k * (X[X.length - 1] - a));
+      let lastX = X[X.length - 1];
+      for (let f = fLast + 1; f <= Math.min(fMax, fLast + span); f++) {
+        const cs = byFrame.get(f); if (!cs) continue;
+        const tt = cs[0].t, dtt = tt - t[t.length - 1];
+        const xp = X[X.length - 1] + vEnd * dtt; if (xp > PITCH + 2.5) break;
+        const c = bestInFrame(cs, xp - 0.1 * vEnd * dtt, null, 0.25 + 0.2 * vEnd * dtt, 9);
+        if (c && c.X > lastX - 0.05 && Math.abs(c.Z - polyval(zHi, tt)) < 0.5 + 6 * dtt) { add.push(c); lastX = c.X; }
+      }
+      if (!add.length) break;
+      const m = new Map(track.map(c => [c.frame, c]));
+      for (const c of add) if (!m.has(c.frame)) m.set(c.frame, c);
+      track = [...m.values()].sort((p, q) => p.frame - q.frame);
+    }
+    return track.length >= 5 ? track : [];
+  }
+
+  function removeOutliers(track, fps) {
+    const t = track.map(c => c.t), X = track.map(c => c.X), Z = track.map(c => c.Z);
+    const w = Math.max(3, Math.round(0.03 * fps)), keep = [];
+    for (let i = 0; i < track.length; i++) {
+      const nb = [];
+      for (let j = Math.max(0, i - w); j < Math.min(track.length, i + w + 1); j++) if (j !== i) nb.push(j);
+      if (nb.length < 3) { keep.push(track[i]); continue; }
+      const cx = polyfit(nb.map(j => t[j]), nb.map(j => X[j]), 1), cz = polyfit(nb.map(j => t[j]), nb.map(j => Z[j]), 1);
+      if (Math.abs(polyval(cx, t[i]) - X[i]) < 0.2 && Math.abs(polyval(cz, t[i]) - Z[i]) < 0.3) keep.push(track[i]);
+    }
+    return keep;
+  }
+
+  function findBounce(t, Z) {
+    const n = t.length; let best = null, bestR = Infinity;
+    const ssr = (c, xs, ys) => xs.reduce((s, x, i) => s + (polyval(c, x) - ys[i]) ** 2, 0);
+    for (let b = 5; b < n - 2; b++) {
+      const pt = t.slice(0, b), pz = Z.slice(0, b), qt = t.slice(b), qz = Z.slice(b);
+      const c1 = polyfit(pt, pz, 2), c2 = polyfit(qt, qz, qt.length >= 4 ? 2 : 1);
+      if (!c1 || !c2) continue;
+      const r = ssr(c1, pt, pz) + ssr(c2, qt, qz);
+      if (polyval(polyder(c1), pt[pt.length - 1]) < 0 && polyval(polyder(c2), qt[0]) > 0 && r < bestR) { best = b; bestR = r; }
+    }
+    const call = polyfit(t, Z, 2), rAll = call ? ssr(call, t, Z) : Infinity;
+    if (best == null || rAll < 1.5 * bestR + 1e-6) return null;
+    return best;
+  }
+
+  function robustDragFit(tp, Xp, k) {
+    let mask = tp.map(() => true), res;
+    for (let it = 0; it < 4; it++) {
+      const ti = tp.filter((_, i) => mask[i]), xi = Xp.filter((_, i) => mask[i]);
+      const t1 = ti[0];
+      const fit = fitDrag(ti, xi, k, t1, xi[0], (xi[xi.length - 1] - xi[0]) / (ti[ti.length - 1] - ti[0]));
+      res = { ...fit, t1, mask };
+      const r = tp.map((t, i) => Xp[i] - xDrag(t, fit.a, fit.u, t1, k));
+      const rm = r.filter((_, i) => mask[i]), med = median(rm);
+      const mad = 1.4826 * median(rm.map(v => Math.abs(v - med)));
+      const nm = r.map(v => Math.abs(v) <= Math.max(0.06, 3.5 * mad));
+      if (nm.filter(Boolean).length < 4 || nm.every((v, i) => v === mask[i])) break;
+      mask = nm;
+    }
+    return res;
+  }
+
+  // ---------------------------------------------------------------- speed
+  function measureSpeed(trackIn, fps, k, opts) {
+    const { releaseX = 0.9, mapper = null, lateralKnown = false } = opts || {};
+    const track = removeOutliers(trackIn, fps);
+    const t = track.map(c => c.t), X = track.map(c => c.X), Z = track.map(c => c.Z);
+    const b = findBounce(t, Z);
+    const nPre = b == null ? t.length : b;
+    let tp = t.slice(0, nPre), Xp = X.slice(0, nPre), Zp = Z.slice(0, nPre);
+    if (tp.length < 4) throw new Error('Too few ball positions before the bounce. Film in slow-mo, or move closer.');
+    const fit = robustDragFit(tp, Xp, k);
+    const { a, u, t1, cov, mask } = fit;
+    tp = tp.filter((_, i) => mask[i]); Xp = Xp.filter((_, i) => mask[i]); Zp = Zp.filter((_, i) => mask[i]);
+    const used = track.filter((_, i) => i >= nPre || mask[i]);
+
+    const relX = Math.min(releaseX, a);
+    const vxRel = u * Math.exp(-k * (relX - a));
+    const tRel = t1 + (Math.exp(k * (relX - a)) - 1) / (k * u);
+    // vertical: Z = z1 + w (t - t1) - g/2 (t - t1)^2
+    const tt = tp.map(v => v - t1);
+    const lw = polyfit(tt, Zp.map((z, i) => z + 0.5 * G * tt[i] ** 2), 1);
+    const w = lw[0], z1 = lw[1];
+    const vzRel = w - G * (tRel - t1);
+    const slope = mapper ? mapper.slope : 0;
+    const vRel = Math.sqrt(vxRel ** 2 * (1 + slope ** 2) + vzRel ** 2);
+
+    // gravity check: free quadratic in time; its curvature should equal g/2
+    const q = polyfit(tt, Zp, 2);
+    const gRatio = q ? -2 * q[0] / G : NaN;
+
+    // error budget
+    const J = [vxRel * k, Math.exp(-k * (relX - a))];
+    const varFit = J[0] * (J[0] * cov[0][0] + J[1] * cov[1][0]) + J[1] * (J[0] * cov[0][1] + J[1] * cov[1][1]);
+    const sFit = Number.isFinite(varFit) && varFit > 0 ? Math.sqrt(varFit) : 0;
+    const vWithK = kk => { const f2 = fitDrag(tp, Xp, kk, t1, a, u); return f2.u * Math.exp(-kk * (Math.min(releaseX, f2.a) - f2.a)); };
+    const sCd = Math.abs(vWithK(k * (1 + 0.06 / 0.42)) - vWithK(k * (1 - 0.06 / 0.42))) / 2;
+    let sLat = 0, sCal = 0;
+    if (mapper) {
+      const p0 = mapper.toImage(0, 0), p1 = mapper.toImage(PITCH, 0);
+      const pitchPx = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+      sLat = vRel * (lateralKnown ? 0.15 : 0.35) / mapper.camDist;
+      sCal = vRel * 2 * Math.SQRT2 / pitchPx;
+    }
+    const sigma = Math.sqrt(sFit ** 2 + sCd ** 2 + sLat ** 2 + sCal ** 2);
+
+    const res = {
+      releaseKmh: vRel * 3.6, releaseMph: vRel * 2.236936, uncertaintyKmh: sigma * 3.6, calKmh: sCal * 3.6,
+      firstSeenKmh: u * 3.6, bounceKmh: null, bounceX: null,
+      pointsUsed: tp.length, pointsTotal: used.length, fps, gRatio, warnings: [],
+      track: used, fit: { a, u, t1, z1, w, tRel, relX, k, bounceIndex: b }
+    };
+    if (b != null) {
+      const tb = 0.5 * (t[b - 1] + t[b]);
+      const xb = xDrag(tb, a, u, t1, k);
+      res.bounceX = xb; res.bounceKmh = u * Math.exp(-k * (xb - a)) * 3.6;
+    } else res.warnings.push('No bounce seen: full toss, or the ball left the picture before pitching.');
+    if (fps < 50) res.warnings.push(`At ${Math.round(fps)} fps the ball moves ${(vRel / fps).toFixed(1)} m between frames, so this reading is rough. Slow-mo gives much better accuracy.`);
+    if (tp.length < 8) res.warnings.push('Few ball positions before the bounce, so the reading is rough.');
+    if (a - relX > 6) res.warnings.push("The ball was first seen far from the bowler's hand. Keep the bowler's end in the picture.");
+    return res;
+  }
+
+  // ---------------------------------------------------------------- full analysis
+  // cands: from MotionDetector (tFrame in container seconds). Tries the
+  // possible slow-motion factors and keeps the one where the ball falls at g.
+  function analyse(cands, opts) {
+    const { containerFps, factors = [1], readoutFrac = 0.75, k, releaseX, mapper, lateralKnown } = opts;
+    const tries = [];
+    for (const f of factors) {
+      const fps = containerFps * f;
+      const cs = cands.map(c => ({ ...c, t: (c.tFrame + c.rowFrac * readoutFrac / containerFps) / f }));
+      const track = findTrack(cs, fps, k);
+      if (!track.length) { tries.push({ factor: f, fps, ok: false }); continue; }
+      try {
+        const res = measureSpeed(track, fps, k, { releaseX, mapper, lateralKnown });
+        res.factor = f;
+        // a delivery travels down the pitch: bowler's arm, fielders and the
+        // umpire never cover 7 m in a straight, fast, falling line
+        const tr = res.track, span = tr[tr.length - 1].X - tr[0].X;
+        if (span < 7 || res.gRatio <= 0) { tries.push({ factor: f, fps, ok: false, err: 'not a delivery', res }); continue; }
+        tries.push({ factor: f, fps, ok: true, res, score: Math.abs(Math.log(Math.max(1e-3, res.gRatio || 1e-3))) });
+      } catch (e) { tries.push({ factor: f, fps, ok: false, err: e.message }); }
+    }
+    const ok = tries.filter(r => r.ok);
+    if (!ok.length) return { ok: false, tries };
+    ok.sort((p, q) => p.score - q.score);
+    const best = ok[0].res;
+    if (opts.calib) calibrationSpread(best, opts);
+    if (factors.length > 1) {
+      best.frameRateCheck = Number.isFinite(best.gRatio) && best.gRatio > 0.55 && best.gRatio < 1.8 ? 'confirmed' : 'unconfirmed';
+      if (best.frameRateCheck === 'unconfirmed')
+        best.warnings.push('Could not confirm the slow-motion speed from the ball\'s fall. Set it by hand in Settings if this reading looks wrong.');
+    }
+    return { ok: true, result: best, tries };
+  }
+
+  // How much would the reading move if each calibration tap were off by
+  // ~sigmaPx? Re-map the tracked ball with jiggled taps and re-measure.
+  function calibrationSpread(res, opts) {
+    const { calib, k, releaseX, lateralKnown } = opts;
+    const { pts, W, H, hfov, offset, sigmaPx = 1 } = calib;
+    let seed = 12345;
+    const gauss = () => {
+      let u = 0, v = 0;
+      while (!u) u = (seed = (seed * 16807) % 2147483647) / 2147483647;
+      v = (seed = (seed * 16807) % 2147483647) / 2147483647;
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    };
+    const speeds = [];
+    for (let i = 0; i < 12; i++) {
+      try {
+        const jp = pts.map(([x, y]) => [x + gauss() * sigmaPx, y + gauss() * sigmaPx]);
+        const m = makeMapper(cameraFromCalibration(jp, W, H, hfov), offset, releaseX);
+        const tr = res.track.map(c => { const w = m.toWorld(c.u, c.v); return w ? { ...c, X: w[0], Z: w[1] } : null; }).filter(Boolean);
+        speeds.push(measureSpeed(tr, res.fps, k, { releaseX, mapper: m, lateralKnown }).releaseKmh);
+      } catch (e) { /* skip a failed draw */ }
+    }
+    if (speeds.length >= 6) {
+      const mu = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+      const sd = Math.sqrt(speeds.reduce((a, b) => a + (b - mu) ** 2, 0) / (speeds.length - 1));
+      const other = res.uncertaintyKmh ** 2 - (res.calKmh || 0) ** 2;
+      res.calKmh = sd;
+      res.uncertaintyKmh = Math.sqrt(Math.max(0, other) + sd * sd);
+    }
+  }
+
+  function lengthName(bounceX) {      // Hawk-Eye style zones, distance from batter's stumps
+    if (bounceX == null) return 'Full toss';
+    const d = PITCH - bounceX;
+    if (d < 2) return 'Yorker'; if (d < 6) return 'Full'; if (d < 8) return 'Good length'; return 'Short';
+  }
+
+  const api = { PITCH, STUMP_H, BALL_D, G, PHONES, dragK, homography, cameraFromCalibration, makeMapper,
+    corridorBox, MotionDetector, findTrack, measureSpeed, analyse, lengthName, polyfit, polyval, xDrag, projectWorld };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RadarEngine = api;
+})(typeof self !== 'undefined' ? self : this);
+
+</script>
+<script>
+(() => {
+'use strict';
+const E = window.RadarEngine;
+const $ = id => document.getElementById(id);
+const SAMPLE = { uri: 'data:video/webm;base64,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', pts: [[64.2, 412.7], [63.4, 372.0], [1182.1, 407.5], [1182.8, 369.1]], side: 'near', w: 1280, h: 720 };
+
+// ------------------------------------------------------------ storage
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('cricketRadar.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('cricketRadar.' + k, JSON.stringify(v)); } catch (e) { /* storage blocked: keep in memory */ } }
+};
+const S = {
+  settings: Object.assign({ phone: 'huawei-y9-prime-2019', fov: 68, slowmo: 'auto', units: 'kmh', alt: 0, temp: 25, thr: '18', side: 'near' }, store.get('settings', {})),
+  history: store.get('history', []),
+  setups: store.get('setups', {}),       // keyed by "WxH:source"
+};
+const saveSettings = () => store.set('settings', S.settings);
+
+function profile() {
+  const p = Object.assign({}, E.PHONES[S.settings.phone] || E.PHONES.generic);
+  if (S.settings.phone === 'generic') p.hfovDeg = +S.settings.fov || 68;
+  return p;
+}
+function airDensity() {
+  const h = +S.settings.alt || 0, T = (+S.settings.temp || 25) + 273.15;
+  const p = 101325 * Math.pow(1 - 2.25577e-5 * h, 5.25588);
+  return p / (287.05 * T);
+}
+const fmtSpeed = kmh => S.settings.units === 'mph' ? kmh / 1.609344 : kmh;
+const unitName = () => S.settings.units === 'mph' ? 'mph' : 'km/h';
+
+// ------------------------------------------------------------ readout
+function showReading(r, opts = {}) {
+  $('speedNum').textContent = fmtSpeed(r.kmh).toFixed(1);
+  $('speedUnit').textContent = unitName();
+  const other = S.settings.units === 'mph' ? `${r.kmh.toFixed(1)} km/h` : `${(r.kmh / 1.609344).toFixed(1)} mph`;
+  $('speedPm').textContent = `± ${fmtSpeed(r.pm).toFixed(1)} ${unitName()} · ${other}`;
+  $('fLen').textContent = r.len;
+  $('fBounce').textContent = r.fromBatter == null ? '–' : `${r.fromBatter.toFixed(1)} m`;
+  $('fFps').textContent = r.factor > 1 ? `${r.factor}× · ${Math.round(r.fps)} fps` : `${Math.round(r.fps)} fps`;
+  $('readTag').textContent = opts.tag || 'Measured';
+  if (opts.animate) { const b = $('speedBox'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
+}
+
+function renderHistory() {
+  const h = S.history, list = $('hist');
+  list.textContent = '';
+  $('histEmpty').hidden = h.length > 0; $('stats').hidden = !h.length; $('btnClear').hidden = !h.length;
+  if (!h.length) return;
+  const sp = h.map(x => x.kmh);
+  $('sTop').textContent = fmtSpeed(Math.max(...sp)).toFixed(1);
+  $('sAvg').textContent = fmtSpeed(sp.reduce((a, b) => a + b, 0) / sp.length).toFixed(1);
+  $('sN').textContent = h.length;
+  for (const x of h.slice().reverse().slice(0, 30)) {
+    const li = document.createElement('li');
+    const v = document.createElement('span'); v.className = 'v'; v.textContent = fmtSpeed(x.kmh).toFixed(1);
+    const d = document.createElement('span'); d.className = 'd';
+    const t = new Date(x.at);
+    d.textContent = `${unitName()} ±${fmtSpeed(x.pm).toFixed(1)} · ${x.len} · ${x.src === 'live' ? 'live' : (x.factor > 1 ? x.factor + '× slow-mo' : Math.round(x.fps) + ' fps')} · ${t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${x.src === 'sample' ? ' · sample' : ''}`;
+    const del = document.createElement('button'); del.className = 'x'; del.type = 'button'; del.textContent = '×';
+    del.setAttribute('aria-label', `Delete ${x.kmh.toFixed(1)} km/h ball`);
+    del.onclick = () => { S.history = S.history.filter(y => y.id !== x.id); store.set('history', S.history); renderHistory(); };
+    li.append(v, d, del); list.append(li);
+  }
+}
+$('btnClear').onclick = () => { $('clearConfirm').hidden = false; };
+$('clearNo').onclick = () => { $('clearConfirm').hidden = true; };
+$('clearYes').onclick = () => { S.history = []; store.set('history', []); $('clearConfirm').hidden = true; renderHistory(); };
+
+function recordResult(res, src) {
+  const len = E.lengthName(res.bounceX);
+  const entry = { id: Date.now() + Math.random(), at: Date.now(), kmh: res.releaseKmh, pm: res.uncertaintyKmh, len,
+    fromBatter: res.bounceX == null ? null : E.PITCH - res.bounceX, factor: res.factor || 1, fps: res.fps, src };
+  S.history.push(entry); if (S.history.length > 300) S.history.shift();
+  store.set('history', S.history);
+  renderHistory();
+  return entry;
+}
+
+// ------------------------------------------------------------ sheets
+function openSheet(id) { for (const s of ['mark', 'work', 'live', 'settings']) $(s).hidden = s !== id; $('home').hidden = !!id && id !== null; window.scrollTo(0, 0); }
+function closeSheets() { for (const s of ['mark', 'work', 'live', 'settings']) $(s).hidden = true; $('home').hidden = false; }
+function homeMessage(msg) { const m = $('homeMsg'); m.textContent = msg || ''; m.hidden = !msg; }
+
+// ------------------------------------------------------------ settings UI
+function syncSettingsUI() {
+  const st = S.settings;
+  $('stPhone').value = st.phone; $('stFov').value = st.fov; $('stFovF').hidden = st.phone !== 'generic';
+  $('stSlow').value = st.slowmo; $('stUnits').value = st.units; $('stAlt').value = st.alt; $('stTemp').value = st.temp; $('stThr').value = st.thr;
+  const p = profile(), spec = $('stSpec'); spec.textContent = '';
+  const rows = st.phone === 'generic' ? [['Lens', `${p.hfovDeg}° across the video (your setting)`]] : [
+    ['Main camera', p.mainCamera], ['Video', p.video], ['Field of view', `about ${p.hfovDeg}° across the video (estimated)`],
+    ['Rolling shutter', `rows read over ~${Math.round(p.readoutFrac * 100)}% of each frame; corrected`], ['Slow-mo tried', p.slowmoFactors.map(f => f + '×').join(', ') + ' (from the ball\'s fall)'], ['Note', p.notes]];
+  for (const [k, v] of rows) { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; spec.append(dt, dd); }
+  $('phoneName').textContent = st.phone === 'generic' ? 'Other phone' : 'Y9 Prime';
+}
+$('phoneChip').onclick = () => { syncSettingsUI(); openSheet('settings'); };
+$('stDone').onclick = () => { closeSheets(); renderHistory(); if (lastShown) showReading(lastShown.r, lastShown.o); };
+for (const [id, key] of [['stPhone', 'phone'], ['stFov', 'fov'], ['stSlow', 'slowmo'], ['stUnits', 'units'], ['stAlt', 'alt'], ['stTemp', 'temp'], ['stThr', 'thr']])
+  $(id).addEventListener('change', e => { S.settings[key] = e.target.value; saveSettings(); syncSettingsUI(); });
+
+// ------------------------------------------------------------ marking the stumps
+const PROMPTS = ["Bowler's end: <b>bottom</b> of the middle stump", "Bowler's end: <b>top</b> of the middle stump",
+  "Batter's end: <b>bottom</b> of the middle stump", "Batter's end: <b>top</b> of the middle stump"];
+const MK = { pts: [], frame: null, W: 0, H: 0, src: null, onGo: null, seek: null };
+const mkCv = $('mkCanvas'), mkCtx = mkCv.getContext('2d');
+
+function drawMark() {
+  if (!MK.frame) return;
+  mkCtx.drawImage(MK.frame, 0, 0);
+  const r = Math.max(4, MK.W / 220);
+  mkCtx.lineWidth = Math.max(2, MK.W / 640);
+  MK.pts.forEach(([x, y], i) => {
+    mkCtx.strokeStyle = '#ffeb3b'; mkCtx.beginPath(); mkCtx.arc(x, y, r * 1.8, 0, 7); mkCtx.stroke();
+    mkCtx.beginPath(); mkCtx.moveTo(x - r * 3, y); mkCtx.lineTo(x + r * 3, y); mkCtx.moveTo(x, y - r * 3); mkCtx.lineTo(x, y + r * 3); mkCtx.stroke();
+    mkCtx.fillStyle = '#ffeb3b'; mkCtx.font = `600 ${Math.round(r * 4)}px sans-serif`; mkCtx.fillText(String(i + 1), x + r * 2.4, y - r * 2.4);
+  });
+  if (MK.pts.length >= 2) { mkCtx.strokeStyle = 'rgba(255,235,59,.6)'; mkCtx.beginPath(); mkCtx.moveTo(...MK.pts[0]); mkCtx.lineTo(...MK.pts[1]); mkCtx.stroke(); }
+  if (MK.pts.length >= 4) { mkCtx.beginPath(); mkCtx.moveTo(...MK.pts[2]); mkCtx.lineTo(...MK.pts[3]); mkCtx.stroke(); }
+  const n = MK.pts.length;
+  $('mkN').textContent = n < 4 ? n + 1 : '✓';
+  $('mkText').innerHTML = n < 4 ? PROMPTS[n] : 'All four points marked. Check the side, then measure.';
+  $('mkGo').disabled = n < 4; $('mkGoSub').textContent = n < 4 ? `Mark all 4 points first (${n}/4)` : 'Track the ball and work out its release speed';
+  $('mkUndo').disabled = !n;
+}
+// While the finger is down the point moves at 1/4 of the finger's speed, so it
+// can be placed more precisely than a fingertip allows.
+const DRAG = { on: false, ax: 0, ay: 0, sx: 0, sy: 0, x: 0, y: 0 };
+function showLoupe() {
+  const r = mkCv.getBoundingClientRect(), L = $('loupe'), lc = $('loupeCv').getContext('2d');
+  const size = 132, cx = r.left + DRAG.x * r.width / MK.W, cy = r.top + DRAG.y * r.height / MK.H;
+  L.hidden = false;
+  // float above the finger; if there's no room, put it beside the finger
+  let top = cy - size - 56, left = cx - size / 2;
+  if (top < 4) { top = Math.max(4, cy - size / 2); left = cx + 60 + size > innerWidth ? cx - 60 - size : cx + 60; }
+  L.style.left = Math.min(Math.max(4, left), innerWidth - size - 4) + 'px'; L.style.top = top + 'px';
+  const span = Math.max(24, MK.W / 50);          // video pixels shown across the loupe
+  lc.imageSmoothingEnabled = false;
+  lc.fillStyle = '#000'; lc.fillRect(0, 0, size, size);
+  lc.drawImage(MK.frame, DRAG.x - span / 2, DRAG.y - span / 2, span, span, 0, 0, size, size);
+  lc.strokeStyle = '#ffeb3b'; lc.lineWidth = 1.5; lc.beginPath();
+  lc.moveTo(size / 2, 10); lc.lineTo(size / 2, size / 2 - 6); lc.moveTo(size / 2, size / 2 + 6); lc.lineTo(size / 2, size - 10);
+  lc.moveTo(10, size / 2); lc.lineTo(size / 2 - 6, size / 2); lc.moveTo(size / 2 + 6, size / 2); lc.lineTo(size - 10, size / 2); lc.stroke();
+}
+mkCv.addEventListener('pointerdown', e => {
+  if (MK.pts.length >= 4) return;
+  const r = mkCv.getBoundingClientRect();
+  Object.assign(DRAG, { on: true, ax: e.clientX, ay: e.clientY,
+    sx: (e.clientX - r.left) * MK.W / r.width, sy: (e.clientY - r.top) * MK.H / r.height });
+  DRAG.x = DRAG.sx; DRAG.y = DRAG.sy;
+  mkCv.setPointerCapture(e.pointerId); showLoupe();
+});
+mkCv.addEventListener('pointermove', e => {
+  if (!DRAG.on) return;
+  const r = mkCv.getBoundingClientRect(), g = 0.25 * MK.W / r.width;
+  DRAG.x = Math.min(MK.W, Math.max(0, DRAG.sx + (e.clientX - DRAG.ax) * g));
+  DRAG.y = Math.min(MK.H, Math.max(0, DRAG.sy + (e.clientY - DRAG.ay) * g));
+  showLoupe();
+});
+mkCv.addEventListener('pointerup', () => {
+  if (!DRAG.on) return; DRAG.on = false; $('loupe').hidden = true;
+  if (MK.pts.length < 4) { MK.pts.push([DRAG.x, DRAG.y]); drawMark(); }
+});
+mkCv.addEventListener('pointercancel', () => { DRAG.on = false; $('loupe').hidden = true; });
+$('mkUndo').onclick = () => { MK.pts.pop(); drawMark(); };
+$('markClose').onclick = () => { stopLive(); closeSheets(); };
+function syncSide() { for (const b of $('sideSeg').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.side === S.settings.side)); }
+$('sideSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.settings.side = b.dataset.side; saveSettings(); syncSide(); });
+
+function openMark({ frame, W, H, src, pts, seek, onGo }) {
+  Object.assign(MK, { frame, W, H, src, pts: pts ? pts.map(p => p.slice()) : [], seek, onGo });
+  mkCv.width = W; mkCv.height = H;
+  const saved = S.setups[`${W}x${H}:${src === 'live' ? 'live' : 'clip'}`];
+  $('mkSaved').hidden = !saved || !!pts;
+  $('mkSaved').onclick = () => { MK.pts = saved.pts.map(p => p.slice()); if (saved.side) { S.settings.side = saved.side; syncSide(); } drawMark(); };
+  $('scrubF').hidden = !seek;
+  syncSide(); openSheet('mark'); drawMark();
+}
+$('scrub').addEventListener('input', e => { if (MK.seek) MK.seek(+e.target.value / 1000); });
+$('mkGo').onclick = () => {
+  if (MK.pts.length < 4) return;
+  try { const cam = E.cameraFromCalibration(MK.pts, MK.W, MK.H, profile().hfovDeg);
+    if (cam.rms > 4) { $('mkText').textContent = 'Those points don\'t fit a normal camera view. Check the order (bowler\'s end first, bottom then top) and mark again.'; return; }
+  } catch (err) { $('mkText').textContent = err.message; return; }
+  if (MK.src !== 'sample') { S.setups[`${MK.W}x${MK.H}:${MK.src === 'live' ? 'live' : 'clip'}`] = { pts: MK.pts, side: S.settings.side }; store.set('setups', S.setups); }
+  MK.onGo(MK.pts.map(p => p.slice()));
+};
+
+// ------------------------------------------------------------ geometry setup shared by clip + live
+function buildRig(pts, W, H) {
+  const p = profile();
+  const cam = E.cameraFromCalibration(pts, W, H, p.hfovDeg);
+  const offset = { near: 0.35, centre: 0, far: -0.35 }[S.settings.side];
+  const mapper = E.makeMapper(cam, offset, 0.9);
+  const AW = Math.min(960, W), s = W / AW, AH = Math.round(H / s);
+  const box = E.corridorBox(mapper, W, H);
+  const roi = { x: Math.floor(box.x / s), y: Math.floor(box.y / s), w: Math.ceil(box.w / s), h: Math.ceil(box.h / s) };
+  roi.w = Math.max(8, Math.min(roi.w, AW - roi.x)); roi.h = Math.max(8, Math.min(roi.h, AH - roi.y));
+  const ballPx = Math.max(2, E.BALL_D * cam.f / Math.max(5, mapper.camDist) / s);
+  const det = new E.MotionDetector({ roiW: roi.w, roiH: roi.h, videoH: H, mapper, threshold: +S.settings.thr,
+    toVideo: (x, y) => [(x + roi.x) * s, (y + roi.y) * s], maxArea: Math.max(60, (ballPx * 6) ** 2) });
+  const cv = $('work1'); cv.width = AW; cv.height = AH;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  return { p, cam, mapper, offset, AW, AH, s, roi, det, ctx, pts, W, H };
+}
+function analyseOpts(rig, containerFps, forceFactors) {
+  const st = S.settings, p = rig.p;
+  const factors = forceFactors || (st.slowmo === 'auto' ? (containerFps >= 90 ? [1] : [1, ...p.slowmoFactors]) : [+st.slowmo]);
+  return { containerFps, factors, readoutFrac: p.readoutFrac, k: E.dragK(0.42, airDensity()), releaseX: 0.9, mapper: rig.mapper,
+    lateralKnown: st.side !== 'centre', calib: { pts: rig.pts, W: rig.W, H: rig.H, hfov: p.hfovDeg, offset: rig.offset, sigmaPx: 1 } };
+}
+function snapFps(f) {
+  for (const c of [24, 25, 30, 48, 50, 60, 90, 120, 240, 480, 960]) if (Math.abs(f - c) / c < 0.03) return c;
+  return f;
+}
+
+// ------------------------------------------------------------ clip mode
+const vid = $('clipVideo');
+let clipJob = null, lastShown = null;
+const once = (el, ev) => new Promise(res => el.addEventListener(ev, res, { once: true }));
+async function seekTo(t) { if (Math.abs(vid.currentTime - t) < 1e-4) return; vid.currentTime = t; await once(vid, 'seeked'); }
+function grabFrame() { const c = document.createElement('canvas'); c.width = vid.videoWidth; c.height = vid.videoHeight; c.getContext('2d').drawImage(vid, 0, 0); return c; }
+
+async function loadClip(url, src) {
+  homeMessage('');
+  vid.src = url; vid.load();
+  try {
+    await Promise.race([once(vid, 'loadeddata'), new Promise((_, rej) => vid.addEventListener('error', () => rej(new Error('unreadable')), { once: true }))]);
+  } catch (e) { homeMessage('This video can\'t be opened in the browser. Try a clip saved by the phone\'s own camera app (MP4).'); return; }
+  await seekTo(Math.min(0.05, (vid.duration || 1) / 2));
+  const W = vid.videoWidth, H = vid.videoHeight;
+  $('scrub').value = 0;
+  openMark({ frame: grabFrame(), W, H, src, pts: src === 'sample' ? SAMPLE.pts : null,
+    seek: async f => { await seekTo(f * Math.max(0, (vid.duration || 0) - 0.05)); MK.frame = grabFrame(); drawMark(); },
+    onGo: pts => runClip(pts, src) });
+  if (src === 'sample') { S.settings.side = SAMPLE.side; syncSide(); }
+}
+$('btnClip').onclick = () => $('fileIn').click();
+$('fileIn').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadClip(URL.createObjectURL(f), 'clip'); e.target.value = ''; });
+$('btnSample').onclick = () => loadClip(SAMPLE.uri, 'sample');
+
+async function decodePass(rig, rate, onProgress, job) {
+  const cands = [], times = [];
+  rig.det.frames = []; rig.det.meta = [];
+  await seekTo(0);
+  vid.playbackRate = rate;
+  let n = 0;
+  const useRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+  const handle = (t) => {
+    rig.ctx.drawImage(vid, 0, 0, rig.AW, rig.AH);
+    const img = rig.ctx.getImageData(rig.roi.x, rig.roi.y, rig.roi.w, rig.roi.h);
+    for (const c of rig.det.push(img.data, n, t)) cands.push(c);
+    times.push(t); n++;
+    onProgress(t / (vid.duration || 1), n);
+  };
+  if (useRVFC) {
+    await new Promise((resolve, reject) => {
+      const cb = (now, md) => { if (job.cancel) { vid.pause(); return reject(new Error('cancelled')); }
+        handle(md.mediaTime); if (!vid.ended) vid.requestVideoFrameCallback(cb); };
+      vid.requestVideoFrameCallback(cb);
+      vid.addEventListener('ended', resolve, { once: true });
+      vid.play().catch(reject);
+    });
+  } else {                                // older browsers: step through by seeking
+    const step = 1 / 30;
+    for (let t = 0; t < vid.duration; t += step) { if (job.cancel) throw new Error('cancelled'); await seekTo(t); handle(t); }
+  }
+  vid.pause();
+  return { cands, times };
+}
+
+async function runClip(pts, src) {
+  const job = clipJob = { cancel: false };
+  openSheet('work'); $('wkBar').style.width = '0%'; $('wkText').textContent = 'Tracking the ball frame by frame…'; $('wkMeta').textContent = '';
+  let rig, pass;
+  try {
+    rig = buildRig(pts, vid.videoWidth, vid.videoHeight);
+    let rate = (vid.duration || 0) > 12 ? 1 : 0.5;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      pass = await decodePass(rig, rate, (f, n) => { $('wkBar').style.width = (Math.min(1, f) * 100).toFixed(0) + '%'; $('wkMeta').textContent = `${n} frames · ${rig.roi.w}×${rig.roi.h} px searched`; }, job);
+      const d = pass.times.slice(1).map((t, i) => t - pass.times[i]).filter(x => x > 0);
+      const med = d.slice().sort((a, b) => a - b)[d.length >> 1] || 1 / 30;
+      const dropped = d.filter(x => x > 1.5 * med).length / Math.max(1, d.length);
+      pass.fps = snapFps(1 / med);
+      if (dropped < 0.04 || rate <= 0.125) break;
+      rate /= 2; $('wkText').textContent = 'Some frames were skipped. Reading again more slowly…';
+    }
+  } catch (e) { if (e.message !== 'cancelled') { closeSheets(); homeMessage('Could not read the video: ' + e.message); } else closeSheets(); return; }
+  for (const c of pass.cands) c.frame = Math.round(c.tFrame * pass.fps);
+  $('wkText').textContent = 'Fitting the flight…'; await new Promise(r => setTimeout(r, 30));
+  const out = E.analyse(pass.cands, analyseOpts(rig, pass.fps));
+  closeSheets();
+  if (!out.ok) { homeMessage('No delivery found in this clip. Check that both stumps were marked correctly and the ball is visible, or raise the detection sensitivity in Settings.'); return; }
+  const r = out.result;
+  const entry = recordResult(r, src);
+  lastShown = { r: entry, o: { tag: src === 'sample' ? 'Sample' : 'Measured', animate: true } };
+  showReading(entry, lastShown.o);
+  drawShot(rig, r, pass.fps);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+$('wkCancel').onclick = () => { if (clipJob) clipJob.cancel = true; };
+
+function drawShot(rig, r, containerFps) {
+  const cv = $('shot'), ctx = cv.getContext('2d');
+  const W = 960, H = Math.round(W * rig.H / rig.W), k = W / rig.W;
+  // crop to the pitch corridor so the drawing fills the card
+  const y0 = Math.max(0, rig.roi.y * rig.s * k - 20), y1 = Math.min(H, (rig.roi.y + rig.roi.h) * rig.s * k + 20);
+  cv.width = W; cv.height = Math.max(120, Math.round(y1 - y0));
+  ctx.drawImage(MK.frame, 0, -y0, W, H);
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(0, 0, cv.width, cv.height);
+  const f = r.fit, pts = [];
+  const tEnd = r.bounceX != null ? f.t1 + (Math.exp(f.k * (r.bounceX - f.a)) - 1) / (f.k * f.u) : r.track[r.track.length - 1].t;
+  for (let i = 0; i <= 80; i++) {
+    const t = f.tRel + (tEnd - f.tRel) * i / 80, X = E.xDrag(t, f.a, f.u, f.t1, f.k), Z = f.z1 + f.w * (t - f.t1) - 0.5 * E.G * (t - f.t1) ** 2;
+    const [u, v] = rig.mapper.toImage(X, Z); pts.push([u * k, v * k - y0]);
+  }
+  ctx.strokeStyle = '#ffeb3b'; ctx.lineWidth = 2.5; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+  ctx.fillStyle = '#ff4d5e';
+  for (const c of r.track) { ctx.beginPath(); ctx.arc(c.u * k, c.v * k - y0, 2.6, 0, 7); ctx.fill(); }
+  if (r.bounceX != null) { const [u, v] = rig.mapper.toImage(r.bounceX, 0); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(u * k, v * k - y0, 8, 0, 7); ctx.stroke(); }
+  $('resultExtra').hidden = false;
+  $('rxMeta').textContent = `${r.track.length} positions`;
+  const spec = $('rxSpec'); spec.textContent = '';
+  const rows = [
+    ['Release speed', `${r.releaseKmh.toFixed(1)} km/h (${r.releaseMph.toFixed(1)} mph) ± ${r.uncertaintyKmh.toFixed(1)}`],
+    ['At the bounce', r.bounceKmh == null ? '–' : `${r.bounceKmh.toFixed(1)} km/h`],
+    ['Pitched', r.bounceX == null ? 'Did not bounce in view' : `${r.bounceX.toFixed(1)} m from the bowler's stumps (${E.lengthName(r.bounceX).toLowerCase()})`],
+    ['Video', r.factor > 1 ? `${r.factor}× slow-mo: ${Math.round(containerFps)} fps file, ${Math.round(r.fps)} fps capture${r.frameRateCheck === 'confirmed' ? ', confirmed by the ball\'s fall' : ''}` : `${Math.round(r.fps)} fps${r.frameRateCheck === 'confirmed' ? ', confirmed by the ball\'s fall' : ''}`],
+    ['Camera', `${rig.mapper.camDist.toFixed(1)} m from the ball's line`]];
+  for (const [a, b] of rows) { const dt = document.createElement('dt'); dt.textContent = a; const dd = document.createElement('dd'); dd.textContent = b; spec.append(dt, dd); }
+  const w = $('rxWarn'); w.textContent = r.warnings.join(' '); w.hidden = !r.warnings.length;
+}
+
+// ------------------------------------------------------------ live mode
+const LV = { stream: null, rig: null, cands: [], t0: null, fpsEst: 30, last: null, n: 0, timer: null, reported: -1, dts: [] };
+function stopLive() {
+  if (LV.stream) { LV.stream.getTracks().forEach(t => t.stop()); LV.stream = null; }
+  clearInterval(LV.timer); LV.timer = null; LV.rig = null;
+}
+$('lvClose').onclick = () => { stopLive(); closeSheets(); };
+$('btnLive').onclick = async () => {
+  homeMessage('');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { homeMessage('This browser has no camera access here. Use Measure a delivery with a slow-mo clip instead; it is also more accurate.'); return; }
+  try {
+    LV.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } } });
+  } catch (e) {
+    homeMessage('The camera is blocked on this page. Open the standalone Cricket Radar file in Chrome to use live mode, or use Measure a delivery with a slow-mo clip (more accurate).'); return;
+  }
+  const v = $('lvVideo'); v.srcObject = LV.stream; await v.play().catch(() => {});
+  if (!v.videoWidth) await once(v, 'loadedmetadata');
+  const snap = () => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); return c; };
+  openMark({ frame: snap(), W: v.videoWidth, H: v.videoHeight, src: 'live', seek: null, onGo: pts => runLive(pts) });
+};
+$('lvRemark').onclick = () => {
+  const v = $('lvVideo'); clearInterval(LV.timer);
+  const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
+  openMark({ frame: c, W: v.videoWidth, H: v.videoHeight, src: 'live', seek: null, onGo: pts => runLive(pts) });
+};
+function runLive(pts) {
+  const v = $('lvVideo');
+  LV.rig = buildRig(pts, v.videoWidth, v.videoHeight); LV.cands = []; LV.n = 0; LV.t0 = null; LV.dts = []; LV.reported = -1;
+  openSheet('live'); $('lvUnit').textContent = unitName();
+  const frameCb = (now, md) => {
+    if (!LV.rig) return;
+    const t = (md.captureTime || md.expectedDisplayTime || now) / 1000;
+    if (LV.t0 == null) LV.t0 = t;
+    const tt = t - LV.t0;
+    if (LV.last != null) { LV.dts.push(tt - LV.last); if (LV.dts.length > 60) LV.dts.shift(); }
+    LV.last = tt;
+    const rig = LV.rig;
+    rig.ctx.drawImage(v, 0, 0, rig.AW, rig.AH);
+    const img = rig.ctx.getImageData(rig.roi.x, rig.roi.y, rig.roi.w, rig.roi.h);
+    for (const c of rig.det.push(img.data, LV.n, tt)) LV.cands.push(c);
+    LV.n++;
+    const cut = tt - 4; while (LV.cands.length && LV.cands[0].tFrame < cut) LV.cands.shift();
+    v.requestVideoFrameCallback(frameCb);
+  };
+  if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) v.requestVideoFrameCallback(frameCb);
+  else { $('lvState').textContent = 'This browser cannot read camera frames'; return; }
+  clearInterval(LV.timer);
+  LV.timer = setInterval(() => {
+    if (!LV.rig || LV.dts.length < 10) return;
+    const med = LV.dts.slice().sort((a, b) => a - b)[LV.dts.length >> 1];
+    const fps = 1 / med; LV.fpsEst = fps;
+    $('lvFps').textContent = `${v.videoWidth}×${v.videoHeight} · ${fps.toFixed(1)} fps`;
+    if (LV.cands.length < 8) return;
+    const cs = LV.cands.map(c => ({ ...c, frame: Math.round(c.tFrame * fps) }));
+    const out = E.analyse(cs, analyseOpts(LV.rig, fps, [1]));
+    if (!out.ok) return;
+    const r = out.result, lastT = r.track[r.track.length - 1].tFrame;
+    if (LV.last - lastT < 0.35 || r.track[0].tFrame <= LV.reported) return;   // ball still flying, or already shown
+    LV.reported = lastT;
+    LV.cands = LV.cands.filter(c => c.tFrame > lastT);
+    const entry = recordResult(r, 'live');
+    $('lvNum').textContent = fmtSpeed(entry.kmh).toFixed(1); $('lvUnit').textContent = unitName();
+    $('lvPm').textContent = `± ${fmtSpeed(entry.pm).toFixed(1)} · ${entry.len}${entry.fromBatter != null ? ' · ' + entry.fromBatter.toFixed(1) + ' m from batter' : ''}`;
+    lastShown = { r: entry, o: { tag: 'Live', animate: true } };
+    showReading(entry, lastShown.o);
+  }, 300);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden && LV.stream) { stopLive(); closeSheets(); } });
+
+// ------------------------------------------------------------ start
+renderHistory(); syncSettingsUI(); syncSide();
+if (S.history.length) { const e = S.history[S.history.length - 1]; lastShown = { r: e, o: { tag: e.src === 'sample' ? 'Sample' : (e.src === 'live' ? 'Live' : 'Last ball') } }; showReading(e, lastShown.o); }
+else showReading({ kmh: 137.1, pm: 1.6, len: 'Good length', fromBatter: 6.4, factor: 4, fps: 120 }, { tag: 'Example' });
+})();
+</script>
+</body></html>
