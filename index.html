@@ -218,6 +218,7 @@ details > summary { cursor: pointer; font-weight: 600; }
   <div class="wrap">
     <div class="sheet-top"><h2>Mark the stumps</h2><button class="btn-s" id="markClose" type="button">Cancel</button></div>
     <div class="prompt"><span class="n" id="mkN">1</span><p id="mkText">Bowler's end: <b>bottom</b> of the middle stump</p></div>
+    <p class="note small" id="mkStill" hidden>This is a still photo from the camera, so the stumps hold still while you tap. <button class="link" id="mkRetake" type="button">Retake photo</button></p>
     <div class="stage" id="stage"><canvas id="mkCanvas" aria-label="Video frame. Tap to place the point; a magnifier shows while your finger is down."></canvas>
       <div class="loupe" id="loupe" hidden><canvas id="loupeCv" width="132" height="132"></canvas></div></div>
     <p class="small muted">Press on a point and slide your finger to fine-tune it in the magnifier; it moves at a quarter of your finger's speed. Lift to place. Turn the phone sideways for a bigger picture.</p>
@@ -252,14 +253,14 @@ details > summary { cursor: pointer; font-weight: 600; }
   <div class="wrap">
     <div class="sheet-top"><h2>Live radar</h2><button class="btn-s" id="lvClose" type="button">Stop</button></div>
     <div class="livebox"><video id="lvVideo" playsinline muted></video>
-      <div class="hud"><span><span class="dot"></span><span id="lvState">Watching</span></span><span id="lvFps"></span></div></div>
+      <div class="hud"><span><span class="dot"></span><span id="lvState">Camera on</span></span><span id="lvFps"></span></div></div>
     <section class="screen" aria-live="polite">
       <div class="row"><span class="label">Last ball</span><span class="tag live">Live</span></div>
       <div class="speed"><span class="num" id="lvNum">–</span><span class="unit" id="lvUnit">km/h</span></div>
-      <div class="row"><span class="pm" id="lvPm">Bowl when ready. The speed shows about a second after the ball pitches.</span></div>
+      <div class="row"><span class="pm" id="lvPm">Fix the phone on a tripod with both sets of stumps in view, then mark the stumps.</span></div>
     </section>
-    <div class="note warn small" id="lvNote">Live mode uses the camera's normal frame rate (about 30 fps on the Y9 Prime), so readings are rougher than slow-mo clips.</div>
-    <button class="btn-s" id="lvRemark" type="button">Re-mark stumps</button>
+    <button class="btn primary" id="lvRemark" type="button"><span id="lvRemarkT">Mark the stumps</span><small id="lvRemarkS">Takes a still photo of this view for you to tap on</small></button>
+    <div class="note warn small" id="lvNote">Live radar needs a real pitch: the phone fixed in place, side-on, with both sets of stumps in view. It can't measure anything indoors or handheld. It runs at the camera's normal frame rate (about 30 fps on the Y9 Prime), so readings are rougher than slow-mo clips.</div>
   </div>
 </div>
 
@@ -580,6 +581,8 @@ details > summary { cursor: pointer; font-weight: 600; }
         const d2 = Math.max(Math.abs(c[j] - nx[j]), Math.abs(c[j + 1] - nx[j + 1]), Math.abs(c[j + 2] - nx[j + 2]));
         mask[i] = d2 >= thr ? 1 : 0;
       }
+      let on = 0; for (let i = 0; i < W * Hh; i++) on += mask[i];
+      this.lastMovingFrac = on / (W * Hh);     // share of the searched area that changed
       // connected components (8-neighbour) via flood fill
       const label = this.label, stack = this.stack; label.fill(0);
       const out = []; let nl = 0;
@@ -603,6 +606,7 @@ details > summary { cursor: pointer; font-weight: 600; }
         if (tooBig || area < this.minArea || area > this.maxArea) continue;
         out.push({ x: sx / area + 0.5, y: sy / area + 0.5, area });
       }
+      this.lastRaw = out.length;
       if (out.length > this.maxPerFrame) { out.sort((a, b) => a.area - b.area); out.length = this.maxPerFrame; }
       const m = this.meta[1], cands = [];
       for (const o of out) {
@@ -664,7 +668,7 @@ details > summary { cursor: pointer; font-weight: 600; }
     return best;
   }
 
-  function findTrack(cands, fps, k) {
+  function findTrack(cands, fps, k, deadline) {
     const byFrame = new Map();
     for (const c of cands) { if (!byFrame.has(c.frame)) byFrame.set(c.frame, []); byFrame.get(c.frame).push(c); }
     if (!byFrame.size) return [];
@@ -674,6 +678,7 @@ details > summary { cursor: pointer; font-weight: 600; }
 
     let bestScore = 0, bestSeed = null;
     for (const fi of frames) {
+      if (deadline && Date.now() > deadline) break;      // scene too busy: give up cleanly instead of freezing
       const fj = fi + gap; if (!byFrame.has(fj)) continue;
       for (const c1 of byFrame.get(fi)) for (const c2 of byFrame.get(fj)) {
         const dt = c2.t - c1.t; if (dt <= 0) continue;
@@ -847,7 +852,7 @@ details > summary { cursor: pointer; font-weight: 600; }
     for (const f of factors) {
       const fps = containerFps * f;
       const cs = cands.map(c => ({ ...c, t: (c.tFrame + c.rowFrac * readoutFrac / containerFps) / f }));
-      const track = findTrack(cs, fps, k);
+      const track = findTrack(cs, fps, k, opts.budgetMs ? Date.now() + opts.budgetMs : 0);
       if (!track.length) { tries.push({ factor: f, fps, ok: false }); continue; }
       try {
         const res = measureSpeed(track, fps, k, { releaseX, mapper, lateralKnown });
@@ -1080,7 +1085,7 @@ mkCv.addEventListener('pointerup', () => {
 });
 mkCv.addEventListener('pointercancel', () => { DRAG.on = false; $('loupe').hidden = true; });
 $('mkUndo').onclick = () => { MK.pts.pop(); drawMark(); };
-$('markClose').onclick = () => { stopLive(); closeSheets(); };
+$('markClose').onclick = () => { if (LV.stream) openSheet('live'); else closeSheets(); };
 function syncSide() { for (const b of $('sideSeg').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.side === S.settings.side)); }
 $('sideSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.settings.side = b.dataset.side; saveSettings(); syncSide(); });
 
@@ -1090,7 +1095,7 @@ function openMark({ frame, W, H, src, pts, seek, onGo }) {
   const saved = S.setups[`${W}x${H}:${src === 'live' ? 'live' : 'clip'}`];
   $('mkSaved').hidden = !saved || !!pts;
   $('mkSaved').onclick = () => { MK.pts = saved.pts.map(p => p.slice()); if (saved.side) { S.settings.side = saved.side; syncSide(); } drawMark(); };
-  $('scrubF').hidden = !seek;
+  $('scrubF').hidden = !seek; $('mkStill').hidden = src !== 'live';
   syncSide(); openSheet('mark'); drawMark();
 }
 $('scrub').addEventListener('input', e => { if (MK.seek) MK.seek(+e.target.value / 1000); });
@@ -1124,7 +1129,7 @@ function analyseOpts(rig, containerFps, forceFactors) {
   const st = S.settings, p = rig.p;
   const factors = forceFactors || (st.slowmo === 'auto' ? (containerFps >= 90 ? [1] : [1, ...p.slowmoFactors]) : [+st.slowmo]);
   return { containerFps, factors, readoutFrac: p.readoutFrac, k: E.dragK(0.42, airDensity()), releaseX: 0.9, mapper: rig.mapper,
-    lateralKnown: st.side !== 'centre', calib: { pts: rig.pts, W: rig.W, H: rig.H, hfov: p.hfovDeg, offset: rig.offset, sigmaPx: 1 } };
+    lateralKnown: st.side !== 'centre', budgetMs: forceFactors ? 120 : 5000, calib: { pts: rig.pts, W: rig.W, H: rig.H, hfov: p.hfovDeg, offset: rig.offset, sigmaPx: 1 } };
 }
 function snapFps(f) {
   for (const c of [24, 25, 30, 48, 50, 60, 90, 120, 240, 480, 960]) if (Math.abs(f - c) / c < 0.03) return c;
@@ -1249,71 +1254,105 @@ function drawShot(rig, r, containerFps) {
 }
 
 // ------------------------------------------------------------ live mode
-const LV = { stream: null, rig: null, cands: [], t0: null, fpsEst: 30, last: null, n: 0, timer: null, reported: -1, dts: [] };
+const LV = { stream: null, rig: null, cands: [], t0: null, last: null, n: 0, timer: null, reported: -1, dts: [], raw: [] };
+const lv = $('lvVideo');
 function stopLive() {
   if (LV.stream) { LV.stream.getTracks().forEach(t => t.stop()); LV.stream = null; }
   clearInterval(LV.timer); LV.timer = null; LV.rig = null;
 }
+function liveSnap() { const c = document.createElement('canvas'); c.width = lv.videoWidth; c.height = lv.videoHeight; c.getContext('2d').drawImage(lv, 0, 0); return c; }
+function liveIdle() {
+  LV.rig = null; LV.cands = [];
+  $('lvState').textContent = 'Camera on, not measuring yet';
+  $('lvRemarkT').textContent = 'Mark the stumps'; $('lvRemarkS').textContent = 'Takes a still photo of this view for you to tap on';
+  $('lvRemark').className = 'btn primary';
+  $('lvNum').textContent = '–'; $('lvUnit').textContent = unitName();
+  $('lvPm').textContent = 'Fix the phone on a tripod with both sets of stumps in view, then mark the stumps.';
+}
 $('lvClose').onclick = () => { stopLive(); closeSheets(); };
+$('lvRemark').onclick = () => {
+  if (!lv.videoWidth) { $('lvState').textContent = 'Waiting for the camera…'; return; }
+  openMark({ frame: liveSnap(), W: lv.videoWidth, H: lv.videoHeight, src: 'live', seek: null, onGo: pts => runLive(pts) });
+};
+$('mkRetake').onclick = () => {      // show the live view again so a new photo can be taken
+  if (LV.stream) openSheet('live');
+};
+
+// Every camera frame: time it, and once the stumps are marked, look for the ball.
+function liveFrame(now, md) {
+  if (!LV.stream) return;
+  const t = (md.captureTime || md.expectedDisplayTime || now) / 1000;
+  if (LV.t0 == null) LV.t0 = t;
+  const tt = t - LV.t0;
+  if (LV.last != null && tt > LV.last) { LV.dts.push(tt - LV.last); if (LV.dts.length > 60) LV.dts.shift(); }
+  LV.last = tt;
+  const rig = LV.rig;
+  if (rig && !$('live').hidden) {
+    rig.ctx.drawImage(lv, 0, 0, rig.AW, rig.AH);
+    const img = rig.ctx.getImageData(rig.roi.x, rig.roi.y, rig.roi.w, rig.roi.h);
+    for (const c of rig.det.push(img.data, LV.n, tt)) LV.cands.push(c);
+    LV.raw.push(rig.det.lastRaw || 0); if (LV.raw.length > 30) LV.raw.shift();
+    LV.frac = 0.9 * (LV.frac || 0) + 0.1 * (rig.det.lastMovingFrac || 0);
+    LV.n++;
+    const cut = tt - 4; while (LV.cands.length && LV.cands[0].tFrame < cut) LV.cands.shift();
+  }
+  lv.requestVideoFrameCallback(liveFrame);
+}
+
+function liveTick() {
+  if (!LV.stream || LV.dts.length < 10) return;
+  const med = LV.dts.slice().sort((a, b) => a - b)[LV.dts.length >> 1];
+  const fps = 1 / med;
+  $('lvFps').textContent = `${lv.videoWidth}×${lv.videoHeight} · ${fps.toFixed(1)} fps`;
+  if (!LV.rig || $('live').hidden) return;
+  // A moving phone (handheld) or a scene full of movement swamps the tracker: say so instead of guessing.
+  const moving = LV.raw.length ? LV.raw.slice().sort((a, b) => a - b)[LV.raw.length >> 1] : 0;
+  if (moving > 12 || LV.frac > 0.04) {
+    $('lvState').textContent = 'Too much movement: fix the phone on a tripod';
+    LV.cands = []; return;
+  }
+  $('lvState').textContent = `Watching · ${moving} moving`;
+  if (LV.cands.length < 8) return;
+  const cs = LV.cands.map(c => ({ ...c, frame: Math.round(c.tFrame * fps) }));
+  const out = E.analyse(cs, analyseOpts(LV.rig, fps, [1]));
+  if (!out.ok) return;
+  const r = out.result, lastT = r.track[r.track.length - 1].tFrame;
+  if (LV.last - lastT < 0.35 || r.track[0].tFrame <= LV.reported) return;   // ball still flying, or already shown
+  LV.reported = lastT;
+  LV.cands = LV.cands.filter(c => c.tFrame > lastT);
+  const entry = recordResult(r, 'live');
+  $('lvNum').textContent = fmtSpeed(entry.kmh).toFixed(1); $('lvUnit').textContent = unitName();
+  $('lvPm').textContent = `± ${fmtSpeed(entry.pm).toFixed(1)} · ${entry.len}${entry.fromBatter != null ? ' · ' + entry.fromBatter.toFixed(1) + ' m from batter' : ''}`;
+  lastShown = { r: entry, o: { tag: 'Live', animate: true } };
+  showReading(entry, lastShown.o);
+}
+
 $('btnLive').onclick = async () => {
   homeMessage('');
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { homeMessage('This browser has no camera access here. Use Measure a delivery with a slow-mo clip instead; it is also more accurate.'); return; }
+  if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) { homeMessage('This browser cannot read camera frames. Open the page in Chrome, or use Measure a delivery with a slow-mo clip.'); return; }
   try {
     LV.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } } });
   } catch (e) {
     homeMessage('The camera is blocked on this page. Open the standalone Cricket Radar file in Chrome to use live mode, or use Measure a delivery with a slow-mo clip (more accurate).'); return;
   }
-  const v = $('lvVideo'); v.srcObject = LV.stream; await v.play().catch(() => {});
-  if (!v.videoWidth) await once(v, 'loadedmetadata');
-  const snap = () => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); return c; };
-  openMark({ frame: snap(), W: v.videoWidth, H: v.videoHeight, src: 'live', seek: null, onGo: pts => runLive(pts) });
+  Object.assign(LV, { t0: null, last: null, dts: [], raw: [], n: 0, reported: -1 });
+  liveIdle(); openSheet('live');                  // show the moving camera picture straight away
+  lv.srcObject = LV.stream; await lv.play().catch(() => {});
+  lv.requestVideoFrameCallback(liveFrame);
+  clearInterval(LV.timer); LV.timer = setInterval(liveTick, 300);
 };
-$('lvRemark').onclick = () => {
-  const v = $('lvVideo'); clearInterval(LV.timer);
-  const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
-  openMark({ frame: c, W: v.videoWidth, H: v.videoHeight, src: 'live', seek: null, onGo: pts => runLive(pts) });
-};
+
 function runLive(pts) {
-  const v = $('lvVideo');
-  LV.rig = buildRig(pts, v.videoWidth, v.videoHeight); LV.cands = []; LV.n = 0; LV.t0 = null; LV.dts = []; LV.reported = -1;
-  openSheet('live'); $('lvUnit').textContent = unitName();
-  const frameCb = (now, md) => {
-    if (!LV.rig) return;
-    const t = (md.captureTime || md.expectedDisplayTime || now) / 1000;
-    if (LV.t0 == null) LV.t0 = t;
-    const tt = t - LV.t0;
-    if (LV.last != null) { LV.dts.push(tt - LV.last); if (LV.dts.length > 60) LV.dts.shift(); }
-    LV.last = tt;
-    const rig = LV.rig;
-    rig.ctx.drawImage(v, 0, 0, rig.AW, rig.AH);
-    const img = rig.ctx.getImageData(rig.roi.x, rig.roi.y, rig.roi.w, rig.roi.h);
-    for (const c of rig.det.push(img.data, LV.n, tt)) LV.cands.push(c);
-    LV.n++;
-    const cut = tt - 4; while (LV.cands.length && LV.cands[0].tFrame < cut) LV.cands.shift();
-    v.requestVideoFrameCallback(frameCb);
-  };
-  if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) v.requestVideoFrameCallback(frameCb);
-  else { $('lvState').textContent = 'This browser cannot read camera frames'; return; }
-  clearInterval(LV.timer);
-  LV.timer = setInterval(() => {
-    if (!LV.rig || LV.dts.length < 10) return;
-    const med = LV.dts.slice().sort((a, b) => a - b)[LV.dts.length >> 1];
-    const fps = 1 / med; LV.fpsEst = fps;
-    $('lvFps').textContent = `${v.videoWidth}×${v.videoHeight} · ${fps.toFixed(1)} fps`;
-    if (LV.cands.length < 8) return;
-    const cs = LV.cands.map(c => ({ ...c, frame: Math.round(c.tFrame * fps) }));
-    const out = E.analyse(cs, analyseOpts(LV.rig, fps, [1]));
-    if (!out.ok) return;
-    const r = out.result, lastT = r.track[r.track.length - 1].tFrame;
-    if (LV.last - lastT < 0.35 || r.track[0].tFrame <= LV.reported) return;   // ball still flying, or already shown
-    LV.reported = lastT;
-    LV.cands = LV.cands.filter(c => c.tFrame > lastT);
-    const entry = recordResult(r, 'live');
-    $('lvNum').textContent = fmtSpeed(entry.kmh).toFixed(1); $('lvUnit').textContent = unitName();
-    $('lvPm').textContent = `± ${fmtSpeed(entry.pm).toFixed(1)} · ${entry.len}${entry.fromBatter != null ? ' · ' + entry.fromBatter.toFixed(1) + ' m from batter' : ''}`;
-    lastShown = { r: entry, o: { tag: 'Live', animate: true } };
-    showReading(entry, lastShown.o);
-  }, 300);
+  LV.rig = buildRig(pts, lv.videoWidth, lv.videoHeight);
+  LV.rig.det.maxPerFrame = 14;
+  LV.cands = []; LV.raw = []; LV.reported = LV.last == null ? -1 : LV.last;
+  openSheet('live');
+  $('lvState').textContent = 'Watching';
+  $('lvRemarkT').textContent = 'Re-mark stumps'; $('lvRemarkS').textContent = 'Do this if the phone has moved';
+  $('lvRemark').className = 'btn';
+  $('lvUnit').textContent = unitName();
+  $('lvPm').textContent = 'Bowl when ready. The speed shows about a second after the ball pitches.';
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden && LV.stream) { stopLive(); closeSheets(); } });
 
